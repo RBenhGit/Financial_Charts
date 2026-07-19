@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Financial Charts</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; }
+  header { padding: 1rem 1.5rem; border-bottom: 1px solid #ccc; }
+  h1 { margin: 0 0 0.75rem; font-size: 1.25rem; }
+  form { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
+  input, select, button { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
+  button { cursor: pointer; }
+  iframe { width: 100%; height: calc(100vh - 130px); border: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Financial Charts</h1>
+  <form action="/render" method="get" target="result">
+    <label class="field">Ticker
+      <input name="ticker" placeholder="AAPL or TEVA.TA" required autofocus>
+    </label>
+    <label class="field">Source
+      <select name="source">
+        {% for s in sources %}<option value="{{ s }}" {{ 'selected' if s == defaults.source }}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">Period
+      <select name="period">
+        {% for p in periods %}<option value="{{ p }}" {{ 'selected' if p == defaults.period }}>{{ p }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">Range
+      <select name="range">
+        {% for r in ranges %}<option value="{{ r }}" {{ 'selected' if r == defaults.range }}>{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">Chart set
+      <select name="chart_set">
+        {% for c in chart_sets %}<option value="{{ c }}" {{ 'selected' if c == defaults.chart_set }}>{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Render</button>
+  </form>
+</header>
+<iframe name="result" title="dashboard"></iframe>
+</body>
+</html>

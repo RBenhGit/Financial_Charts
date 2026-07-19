@@ -9,7 +9,23 @@ python -m financial_charts TEVA.TA --source twelvedata --range 10y --out out/TEV
 python -m financial_charts verify-source yfinance --ticker AAPL
 ```
 
-69 tests passing, `ruff check` clean, `.claude` hooks wired to the uv toolchain.
+## Web UI (step 1 — static)
+
+An independent `financial_charts/web/` module adds a browser UI. It composes only
+the published interfaces of the existing modules (nothing else was modified) and has
+its own entry point:
+
+```sh
+python -m financial_charts.web --port 8000   # then open the forwarded port
+```
+
+Enter a ticker + source/period/range/chart-set in the form; the dashboard renders in
+an iframe below. Same static matplotlib PNG grid as the CLI. **Step 2 (future):**
+interactive charts — add a JSON endpoint in this same `web/` module and swap the
+front-end to a JS chart library; the template already serializes to JSON, so no
+changes to sources/cache/template are needed.
+
+80 tests passing, `ruff check` clean, `.claude` hooks wired to the uv toolchain.
 
 ## Remaining work
 
