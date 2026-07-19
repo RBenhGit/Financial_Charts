@@ -51,7 +51,9 @@ class Money(BaseModel):
     def to(self, scale: Unit) -> Money:
         """Rescale to a different unit, preserving the represented amount."""
         base = self.value * _UNIT_SCALE[self.scale]
-        return Money(value=base / _UNIT_SCALE[scale], currency=self.currency, scale=scale)
+        return Money(
+            value=base / _UNIT_SCALE[scale], currency=self.currency, scale=scale
+        )
 
     def _check_comparable(self, other: Money) -> None:
         if self.currency != other.currency:
@@ -62,12 +64,20 @@ class Money(BaseModel):
     def __add__(self, other: Money) -> Money:
         self._check_comparable(other)
         other_rescaled = other.to(self.scale)
-        return Money(value=self.value + other_rescaled.value, currency=self.currency, scale=self.scale)
+        return Money(
+            value=self.value + other_rescaled.value,
+            currency=self.currency,
+            scale=self.scale,
+        )
 
     def __sub__(self, other: Money) -> Money:
         self._check_comparable(other)
         other_rescaled = other.to(self.scale)
-        return Money(value=self.value - other_rescaled.value, currency=self.currency, scale=self.scale)
+        return Money(
+            value=self.value - other_rescaled.value,
+            currency=self.currency,
+            scale=self.scale,
+        )
 
     def as_base_units(self) -> float:
         """The represented amount in the currency's smallest common unit (ones)."""

@@ -32,7 +32,11 @@ def check_request(
 
     requested_years = _RANGE_YEARS.get(range.lower())
     max_years = capability.max_history.get(period)
-    if requested_years is not None and max_years is not None and requested_years > max_years:
+    if (
+        requested_years is not None
+        and max_years is not None
+        and requested_years > max_years
+    ):
         limits.append(
             f"requested range {range} exceeds source's {max_years}y history for {period.value}"
         )
