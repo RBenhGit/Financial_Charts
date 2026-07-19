@@ -1,52 +1,60 @@
-# Claude Code Starter Kit
+# Financial Charts
 
-A minimal, opinionated foundation for starting a new project with [Claude Code](https://code.claude.com): a CLAUDE.md built on **simplicity** and **modularity**, deterministic quality gates as hooks, three specialized agents, and two workflow skills.
+A Python tool that fetches a company's fundamentals — for **US and Tel Aviv Stock Exchange
+(TASE)** listings — and renders a fixed, pre-determined grid of charts *all at once*, so an
+investor can evaluate the company at a glance (in the spirit of a Qualtrim-style dashboard).
 
-Compiled from Anthropic's official guidance and field-tested community practice — the full research wiki with sources and rationale lives in [RBenhGit/CodeFundation](https://github.com/RBenhGit/CodeFundation) (see `wiki/topics/efficient-coding-foundation.md` for the playbook this kit implements).
+> **Status: early development.** The project's conventions and architecture are documented in
+> [CLAUDE.md](CLAUDE.md); there is no application code yet. See the checklist below.
 
-## Contents
+## Planned architecture
 
+Data flows one way — **env-configured data source → per-source adapter → canonical template →
+display** — and the display layer reads *only* the template, never a data source directly.
+
+- **Pluggable data sources, chosen by environment config.** `yfinance` is the free tier; a
+  paid-tier source can be swapped in without touching the display layer. Credentials come from
+  env / `.env`, never committed.
+- **One adapter ("converter") per source** maps that source's endpoints onto the canonical
+  template. Each source also declares a **capability set** (which metrics, how much history —
+  e.g. paid = 10y, free = 4y — supported markets/periods) as config-as-code. Adding a source =
+  an `adapter.py` + a declared `capability.py` + a `registry` entry, then confirmed with the
+  explicit `verify-source` command (which reconciles the declaration against the live API); its
+  limits are surfaced to the user. Renders never probe live.
+- **Canonical template = the single display data model** (Pydantic). Every monetary series is
+  a `Money`-style `(value, currency, scale)` value tagged with its currency and unit.
+- **Markets: US + TASE, native currency only** (₪ / $, no FX conversion). TASE has a unit
+  trap — prices are in agorot (1/100 ₪) while reports are in millions of shekels — reconciled
+  at the adapter boundary.
+- **Caching:** adapters cache the template to disk (keyed by ticker + source + date); the
+  display reads cache-first, so metered paid APIs aren't hit needlessly.
+
+The full build plan — chart inventory, per-source capability matrix, tasks, edge cases — is
+in [SPEC.md](SPEC.md). Decided there: **static** output (a snapshot page, not a live web app),
+free source **yfinance** + paid source **Twelve Data**, US-vs-TASE routing by **`.TA` suffix**,
+and period/range **configurable per render**.
+
+## Roadmap
+
+- [x] Project conventions & architecture documented ([CLAUDE.md](CLAUDE.md))
+- [x] Full spec — chart inventory, capability matrix, tasks, edge cases ([SPEC.md](SPEC.md))
+- [ ] Toolchain & project scaffold (`pyproject.toml`, package layout, hooks wired)
+- [ ] Canonical template + `Money` model
+- [ ] Data-source adapters (`yfinance` + `twelvedata`) + capability validation
+- [ ] Charts + dashboard assembly (static grid)
+
+## Development
+
+Requires **Python 3.12+** and [uv](https://docs.astral.sh/uv/). Once the project is
+scaffolded:
+
+```sh
+uv sync            # install/lock dependencies
+pytest -q          # run tests
+ruff check         # lint
+ruff format        # format
 ```
-├── CLAUDE.md                        # Project memory template ({{PLACEHOLDERS}} to fill)
-└── .claude/
-    ├── settings.json                # Hook wiring + a minimal permission allowlist
-    ├── hooks/
-    │   ├── protect-files.sh         # PreToolUse: blocks edits to .env, lockfiles, .git/
-    │   ├── post-edit.sh             # PostToolUse: format + lint each edited file
-    │   └── stop-test-gate.sh        # Stop: refuses to finish while tests fail
-    ├── agents/
-    │   ├── code-reviewer.md         # Read-only adversarial diff review, fresh context
-    │   ├── test-writer.md           # Failing-tests-first; never touches implementation
-    │   └── debugger.md              # Root cause only — never suppresses symptoms
-    └── skills/
-        ├── spec/SKILL.md            # /spec — interview → SPEC.md → implement fresh
-        └── new-module/SKILL.md      # /new-module — scaffold a vertical slice
-```
 
-## Get started
-
-1. Click **Use this template** → create your project repo (or copy `CLAUDE.md` and `.claude/` into an existing one).
-2. Fill every `{{PLACEHOLDER}}` in `CLAUDE.md` — or run `/init` first and merge; keep the result under 200 lines.
-3. Open `.claude/hooks/post-edit.sh` and `.claude/hooks/stop-test-gate.sh` and set `FORMAT_CMD` / `LINT_CMD` / `TEST_CMD` for your stack. **They are no-ops until you do** — the kit never breaks an unconfigured repo. Keep the scripts executable (`chmod +x .claude/hooks/*.sh`; requires `jq`).
-4. Install the code-intelligence plugin for your language (`/plugin` → e.g. `typescript-lsp`, `pyright-lsp`, `rust-analyzer-lsp`) and, if you review PRs, `code-review` or `pr-review-toolkit`.
-5. Commit all of it. The foundation only works if every session and teammate gets it.
-
-## The two principles
-
-1. **Simplicity** — a simple concept is less complicated to debug. No abstraction until variation is real; no speculative flags, layers, or config.
-2. **Modularity** — clear separation makes issues locatable. Domain directories with vertical slices, explicit interfaces, no reaching into internals; a change touches one slice and its tests.
-
-## Daily loop (short version)
-
-Large feature → `/spec` → fresh session implements SPEC.md.
-Any non-trivial change → plan mode first.
-Bugs → `debugger` agent (or a failing test first).
-Before commit → `code-reviewer` agent or `/code-review`.
-The Stop gate keeps a session honest when you walk away.
-
-## Deliberately NOT included
-
-- **Explorer/planner agents** — Claude Code's built-in `Explore` and `Plan` agents already do this; duplicating them adds noise.
-- **A generic review skill** — the bundled `/code-review` exists; the `code-reviewer` agent here adds only the project-specific rules (simplicity/modularity findings).
-- **Dozens of role agents** — start minimal; add an agent only when you keep spawning the same worker with the same instructions.
-- **MCP servers** — connect per need (`claude mcp add`); prefer CLIs (`gh`) where they exist.
+Conventions (simplicity, modularity, verification policy, workflow) live in
+[CLAUDE.md](CLAUDE.md). This repo is built on the **CodeFundation starter kit** — see
+`.claude/` for its hooks, agents, and skills (`/spec`, `/new-module`).
