@@ -103,3 +103,49 @@ def test_render_unknown_source_shows_error(client):
 
     assert response.status_code == 400
     assert "unknown data source" in response.get_data(as_text=True)
+
+
+def test_index_lists_available_charts(client):
+    response = client.get("/")
+
+    body = response.get_data(as_text=True)
+    assert 'name="charts"' in body
+    assert 'value="fcf_margin"' in body
+
+
+def test_render_with_charts_param_selects_only_named_charts(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()
+    ):
+        response = client.get("/render?ticker=AAPL&charts=price")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "<h3>Price</h3>" in body
+    assert "<h3>Revenue</h3>" not in body
+
+
+def test_render_with_unknown_chart_param_shows_error(client):
+    response = client.get("/render?ticker=AAPL&charts=not-a-real-chart")
+
+    assert response.status_code == 400
+    assert "unknown chart" in response.get_data(as_text=True)
+
+
+def test_render_with_duplicate_chart_params_renders_each_chart_once(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()
+    ):
+        response = client.get("/render?ticker=AAPL&charts=price&charts=price")
+
+    assert response.status_code == 200
+    assert response.get_data(as_text=True).count("<h3>Price</h3>") == 1
+
+
+def test_render_with_empty_charts_param_falls_back_to_chart_set(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()
+    ):
+        response = client.get("/render?ticker=AAPL&charts=")
+
+    assert response.status_code == 200

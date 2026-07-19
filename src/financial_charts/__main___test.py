@@ -127,6 +127,56 @@ def test_render_uses_cache_before_fetching(tmp_path, monkeypatch):
     assert len(fetch_calls) == 1
 
 
+def test_render_with_charts_flag_selects_only_named_charts(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "out.html"
+
+    with patch("financial_charts.__main__.get_source", return_value=_StubAdapter()):
+        code = main(["AAPL", "--charts", "price", "--out", str(out)])
+
+    assert code == 0
+    html = out.read_text()
+    assert "<h3>Price</h3>" in html
+    assert "<h3>Revenue</h3>" not in html
+
+
+def test_render_with_duplicate_chart_ids_renders_each_chart_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "out.html"
+
+    with patch("financial_charts.__main__.get_source", return_value=_StubAdapter()):
+        code = main(["AAPL", "--charts", "price,price", "--out", str(out)])
+
+    assert code == 0
+    assert out.read_text().count("<h3>Price</h3>") == 1
+
+
+def test_render_with_unknown_chart_id_returns_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    code = main(
+        [
+            "AAPL",
+            "--charts",
+            "not-a-real-chart",
+            "--out",
+            str(tmp_path / "out.html"),
+        ]
+    )
+
+    assert code == 1
+    assert "unknown chart" in capsys.readouterr().err
+
+
+def test_render_with_empty_charts_flag_returns_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    code = main(["AAPL", "--charts", " , ", "--out", str(tmp_path / "out.html")])
+
+    assert code == 1
+    assert "no charts specified" in capsys.readouterr().err
+
+
 def test_verify_source_subcommand_dispatches(monkeypatch, capsys):
     with patch("financial_charts.__main__.get_source", return_value=_StubAdapter()):
         code = main(["verify-source", "yfinance", "--ticker", "AAPL"])

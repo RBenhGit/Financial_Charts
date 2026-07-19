@@ -13,6 +13,10 @@
   .field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
   input, select, button { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
   button { cursor: pointer; }
+  fieldset.field { border: 1px solid #ccc; border-radius: 4px; padding: 0.4rem 0.6rem; }
+  fieldset.field legend { padding: 0 0.3rem; }
+  fieldset.field label { display: flex; align-items: center; gap: 0.3rem; padding: 0; font-weight: normal; }
+  fieldset.field input[type="checkbox"] { padding: 0; }
   iframe { width: 100%; height: calc(100vh - 130px); border: 0; }
 </style>
 </head>
@@ -43,6 +47,12 @@
         {% for c in chart_sets %}<option value="{{ c }}" {{ 'selected' if c == defaults.chart_set }}>{{ c }}</option>{% endfor %}
       </select>
     </label>
+    <fieldset class="field">
+      <legend>Charts (optional — overrides Chart set)</legend>
+      {% for c in charts %}
+      <label><input type="checkbox" name="charts" value="{{ c.name }}"> {{ c.title }}</label>
+      {% endfor %}
+    </fieldset>
     <button type="submit">Render</button>
   </form>
 </header>

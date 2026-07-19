@@ -5,6 +5,8 @@ from pathlib import Path
 
 from financial_charts import config
 from financial_charts.cache.store import TemplateCache
+from financial_charts.charts.catalog import get_chart
+from financial_charts.charts.registry import register_chart_set
 from financial_charts.dashboard.render import write_output
 from financial_charts.sources.base import (
     Capability,
@@ -37,9 +39,62 @@ def _render_parser() -> argparse.ArgumentParser:
         "--chart-set", dest="chart_set", default=config.DEFAULT_CHART_SET
     )
     parser.add_argument(
+        "--charts",
+        default=None,
+        help="comma-separated chart ids overriding --chart-set, e.g. price,eps,margins",
+    )
+    parser.add_argument(
         "--out", default=None, help="output path (.html, .png, or .pdf)"
     )
     return parser
+
+
+def _dedup_chart_ids(raw_ids: list[str]) -> list[str]:
+    """Strip, drop empties, and drop duplicates, keeping first-seen order.
+
+    First-seen order is preserved so a user's `--charts eps,price` renders in
+    the order they asked for; a registered set's name is still built from the
+    sorted ids so equivalent selections (any order) share one registry entry
+    instead of growing `_CHART_SETS` once per ordering.
+    """
+    seen: set[str] = set()
+    ids: list[str] = []
+    for raw in raw_ids:
+        chart_id = raw.strip()
+        if chart_id and chart_id not in seen:
+            seen.add(chart_id)
+            ids.append(chart_id)
+    return ids
+
+
+def _resolve_chart_set_name(args: argparse.Namespace) -> str | None:
+    """Return the chart set name to render, or None with an error already printed.
+
+    `--charts` builds and registers an ad-hoc set from catalog chart ids,
+    overriding `--chart-set`; otherwise the named set is used as-is.
+    """
+    if not args.charts:
+        return args.chart_set
+
+    chart_ids = _dedup_chart_ids(args.charts.split(","))
+    if not chart_ids:
+        print("error: no charts specified", file=sys.stderr)
+        return None
+
+    try:
+        charts = [get_chart(chart_id) for chart_id in chart_ids]
+    except KeyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
+
+    # Registered permanently in the shared _CHART_SETS registry (never evicted)
+    # keyed by the sorted id set, so repeat/reordered requests for the same
+    # selection reuse one entry — bounded by the catalog's size (at most
+    # 2^N - 1 distinct subsets for N registered charts), which only grows
+    # through reviewed commits, not user input.
+    chart_set_name = "custom:" + ",".join(sorted(chart_ids))
+    register_chart_set(chart_set_name, charts)
+    return chart_set_name
 
 
 def _fetch_with_cache_fallback(
@@ -77,6 +132,10 @@ def _run_render(args: argparse.Namespace) -> int:
     period = Period(args.period)
     source_name = args.source or config.data_source_name()
 
+    chart_set_name = _resolve_chart_set_name(args)
+    if chart_set_name is None:
+        return 1
+
     try:
         adapter = get_source(source_name)
     except (KeyError, MissingCredentials) as exc:
@@ -105,7 +164,7 @@ def _run_render(args: argparse.Namespace) -> int:
     )
 
     out_path = Path(args.out) if args.out else Path("out") / f"{ticker}.html"
-    write_output(fundamentals, out_path, args.chart_set)
+    write_output(fundamentals, out_path, chart_set_name)
     print(f"wrote {out_path}")
     return 0
 
