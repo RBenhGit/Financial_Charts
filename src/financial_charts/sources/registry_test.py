@@ -40,6 +40,14 @@ def test_registered_sources_lists_all():
     assert registered_sources() == ["twelvedata", "yfinance"]
 
 
+def test_every_registered_source_has_a_capability():
+    # Guards against a source being registered without a matching capability
+    # declaration (get_source and get_capability share one registration table,
+    # so this can't drift, but the invariant is worth pinning explicitly).
+    for name in registered_sources():
+        get_capability(name)
+
+
 def test_get_capability_twelvedata_requires_no_credentials():
     with patch.dict("os.environ", {}, clear=True):
         capability = get_capability("twelvedata")
