@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from financial_charts.__main__ import main
 from financial_charts.sources.base import Capability, MissingCredentials, TickerNotFound
+from financial_charts.sources.commission import CommissionCertificate, SampleResult
 from financial_charts.template.models import (
     CompanyFundamentals,
     Currency,
@@ -227,3 +228,89 @@ def test_capabilities_requires_no_credentials(monkeypatch, capsys):
 
     assert code == 0
     assert "capabilities: twelvedata" in capsys.readouterr().out
+
+
+def _certificate() -> CommissionCertificate:
+    return CommissionCertificate(
+        source_name="yfinance",
+        generated_at=date(2026, 1, 1),
+        samples=(
+            SampleResult(
+                market=Market.US,
+                company_type="large_cap",
+                ticker="AAPL",
+                period=Period.ANNUAL,
+                ok=True,
+                available_metrics=frozenset({"price"}),
+            ),
+        ),
+        capability=Capability(
+            markets={Market.US},
+            periods={Period.ANNUAL},
+            max_history={Period.ANNUAL: 4},
+            metrics={"price"},
+        ),
+    )
+
+
+def test_commission_source_subcommand_dispatches(tmp_path, capsys):
+    written_path = tmp_path / "capability.py"
+    adapter = _StubAdapter()
+
+    with (
+        patch("financial_charts.__main__.get_source", return_value=adapter),
+        patch(
+            "financial_charts.__main__.commission", return_value=_certificate()
+        ) as mock_commission,
+        patch(
+            "financial_charts.__main__.capability_module_path",
+            return_value=written_path,
+        ),
+        patch(
+            "financial_charts.__main__.write_capability_module",
+            return_value=written_path,
+        ) as mock_write,
+    ):
+        code = main(["commission-source", "yfinance"])
+
+    assert code == 0
+    mock_commission.assert_called_once_with(adapter, "yfinance", range_="max")
+    mock_write.assert_called_once_with(mock_commission.return_value)
+    out = capsys.readouterr().out
+    assert "commission-source: yfinance" in out
+    assert "AAPL" in out
+    assert "capabilities: yfinance" in out
+    assert "overwriting" in out
+    assert str(written_path) in out
+
+
+def test_commission_source_forwards_range_flag(capsys):
+    with (
+        patch("financial_charts.__main__.get_source", return_value=_StubAdapter()),
+        patch(
+            "financial_charts.__main__.commission", return_value=_certificate()
+        ) as mock_commission,
+        patch("financial_charts.__main__.capability_module_path"),
+        patch("financial_charts.__main__.write_capability_module"),
+    ):
+        main(["commission-source", "yfinance", "--range", "10y"])
+
+    assert mock_commission.call_args.kwargs["range_"] == "10y"
+
+
+def test_commission_source_missing_credentials_returns_error(capsys):
+    with patch(
+        "financial_charts.__main__.get_source",
+        side_effect=MissingCredentials("TWELVEDATA_API_KEY is not set"),
+    ):
+        code = main(["commission-source", "twelvedata"])
+
+    assert code == 1
+    assert "TWELVEDATA_API_KEY" in capsys.readouterr().err
+
+
+def test_commission_source_unknown_source_returns_error(capsys):
+    code = main(["commission-source", "not-a-real-source"])
+
+    assert code == 1
+    assert "unknown data source" in capsys.readouterr().err

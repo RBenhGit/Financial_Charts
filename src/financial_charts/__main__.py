@@ -14,6 +14,11 @@ from financial_charts.sources.base import (
     SourceUnavailable,
     TickerNotFound,
 )
+from financial_charts.sources.commission import (
+    capability_module_path,
+    commission,
+    write_capability_module,
+)
 from financial_charts.sources.market import market_of
 from financial_charts.sources.registry import (
     get_capability,
@@ -287,6 +292,51 @@ def _run_capabilities(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_commission_source_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "commission-source",
+        help=(
+            "Probe a registered source live across sample tickers and generate "
+            "sources/<name>/capability.py from what's actually returned"
+        ),
+    )
+    parser.add_argument(
+        "name", help="registered source name, e.g. yfinance or twelvedata"
+    )
+    parser.add_argument("--range", default="max")
+
+
+def _run_commission_source(args: argparse.Namespace) -> int:
+    try:
+        adapter = get_source(args.name)
+    except (KeyError, MissingCredentials) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    certificate = commission(adapter, args.name, range_=args.range)
+
+    print(f"commission-source: {args.name} (generated {certificate.generated_at})")
+    print()
+    print("samples:")
+    for sample in certificate.samples:
+        status = "ok" if sample.ok else f"FAILED ({sample.error})"
+        metrics = ", ".join(sorted(sample.available_metrics)) or "none"
+        print(
+            f"  {sample.market.value:<5} {sample.company_type:<10} "
+            f"{sample.ticker:<10} {sample.period.value:<10} {status:<24} "
+            f"metrics: {metrics}"
+        )
+    print()
+    print(_format_capability(args.name, certificate.capability))
+    print()
+
+    path = capability_module_path(args.name)
+    print(f"overwriting {path} — review the diff before committing")
+    write_capability_module(certificate)
+    print(f"wrote {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
 
@@ -303,6 +353,13 @@ def main(argv: list[str] | None = None) -> int:
         _add_capabilities_parser(subparsers)
         args = parser.parse_args(argv)
         return _run_capabilities(args)
+
+    if argv[:1] == ["commission-source"]:
+        parser = argparse.ArgumentParser(prog="financial_charts")
+        subparsers = parser.add_subparsers(dest="command")
+        _add_commission_source_parser(subparsers)
+        args = parser.parse_args(argv)
+        return _run_commission_source(args)
 
     args = _render_parser().parse_args(argv)
     return _run_render(args)
