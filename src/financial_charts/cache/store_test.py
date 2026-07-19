@@ -66,3 +66,19 @@ def test_key_distinguishes_source_period_range_and_date(tmp_path):
     assert cache.get("AAPL", "yfinance", Period.QUARTERLY, "5y", as_of) is None
     assert cache.get("AAPL", "yfinance", Period.ANNUAL, "10y", as_of) is None
     assert cache.get("AAPL", "yfinance", Period.ANNUAL, "5y", date(2026, 7, 20)) is None
+
+
+def test_latest_returns_none_when_nothing_cached(tmp_path):
+    cache = TemplateCache(cache_dir=tmp_path)
+    assert cache.latest("AAPL", "yfinance", Period.ANNUAL, "5y") is None
+
+
+def test_latest_returns_most_recent_dated_entry(tmp_path):
+    cache = TemplateCache(cache_dir=tmp_path)
+    fundamentals = _fundamentals()
+
+    cache.put("AAPL", "yfinance", Period.ANNUAL, "5y", date(2026, 7, 1), fundamentals)
+    cache.put("AAPL", "yfinance", Period.ANNUAL, "5y", date(2026, 7, 19), fundamentals)
+
+    latest = cache.latest("AAPL", "yfinance", Period.ANNUAL, "5y")
+    assert latest == fundamentals

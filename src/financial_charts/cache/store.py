@@ -34,6 +34,21 @@ class TemplateCache:
             return None
         return CompanyFundamentals.model_validate_json(path.read_text())
 
+    def latest(
+        self, ticker: str, source: str, period: Period, range: str
+    ) -> CompanyFundamentals | None:
+        """Most recent cached entry for (ticker, source, period, range), any date.
+
+        Used to serve a stale-but-usable page when a live fetch fails.
+        """
+        prefix = f"{ticker.upper()}_{source}_{period.value}_{range.lower()}_"
+        matches = (
+            sorted(self._dir.glob(f"{prefix}*.json")) if self._dir.exists() else []
+        )
+        if not matches:
+            return None
+        return CompanyFundamentals.model_validate_json(matches[-1].read_text())
+
     def put(
         self,
         ticker: str,

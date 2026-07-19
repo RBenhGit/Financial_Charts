@@ -1,10 +1,108 @@
 import argparse
 import sys
+from datetime import date
+from pathlib import Path
 
+from financial_charts import config
+from financial_charts.cache.store import TemplateCache
+from financial_charts.dashboard.render import write_output
+from financial_charts.sources.base import (
+    MissingCredentials,
+    SourceUnavailable,
+    TickerNotFound,
+)
 from financial_charts.sources.market import market_of
 from financial_charts.sources.registry import get_source
+from financial_charts.sources.validation import check_request
 from financial_charts.sources.verify import reconcile
-from financial_charts.template.models import Market, Period
+from financial_charts.template.models import CompanyFundamentals, Market, Period
+
+
+def _render_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="financial_charts")
+    parser.add_argument("ticker", help="e.g. AAPL (US) or TEVA.TA (TASE)")
+    parser.add_argument(
+        "--source", default=None, help="overrides the DATA_SOURCE env var"
+    )
+    parser.add_argument(
+        "--period", choices=[p.value for p in Period], default=config.DEFAULT_PERIOD
+    )
+    parser.add_argument("--range", default=config.DEFAULT_RANGE)
+    parser.add_argument(
+        "--chart-set", dest="chart_set", default=config.DEFAULT_CHART_SET
+    )
+    parser.add_argument(
+        "--out", default=None, help="output path (.html, .png, or .pdf)"
+    )
+    return parser
+
+
+def _fetch_with_cache_fallback(
+    adapter,
+    cache: TemplateCache,
+    ticker: str,
+    source_name: str,
+    market: Market,
+    period: Period,
+    range_: str,
+) -> CompanyFundamentals:
+    today = date.today()
+    cached = cache.get(ticker, source_name, period, range_, today)
+    if cached is not None:
+        return cached
+
+    try:
+        fundamentals = adapter.fetch(ticker, market, period, range_)
+    except SourceUnavailable:
+        stale = cache.latest(ticker, source_name, period, range_)
+        if stale is None:
+            raise
+        stale.source_limits.append(
+            "network/API unavailable; showing a stale cached page"
+        )
+        return stale
+
+    cache.put(ticker, source_name, period, range_, today, fundamentals)
+    return fundamentals
+
+
+def _run_render(args: argparse.Namespace) -> int:
+    ticker = args.ticker
+    market = market_of(ticker)
+    period = Period(args.period)
+    source_name = args.source or config.data_source_name()
+
+    try:
+        adapter = get_source(source_name)
+    except (KeyError, MissingCredentials) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    cache = TemplateCache()
+    try:
+        fundamentals = _fetch_with_cache_fallback(
+            adapter, cache, ticker, source_name, market, period, args.range
+        )
+    except TickerNotFound:
+        print(f"error: ticker not found: {ticker}", file=sys.stderr)
+        return 1
+    except SourceUnavailable as exc:
+        print(
+            f"error: source unavailable and no cache to fall back to: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+    fundamentals.source_limits.extend(
+        limit
+        for limit in check_request(adapter.capability(), market, period, args.range)
+        if limit not in fundamentals.source_limits
+    )
+
+    out_path = Path(args.out) if args.out else Path("out") / f"{ticker}.html"
+    write_output(fundamentals, out_path, args.chart_set)
+    print(f"wrote {out_path}")
+    return 0
 
 
 def _add_verify_source_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -52,17 +150,17 @@ def _run_verify_source(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="financial_charts")
-    subparsers = parser.add_subparsers(dest="command")
-    _add_verify_source_parser(subparsers)
+    argv = sys.argv[1:] if argv is None else argv
 
-    args = parser.parse_args(argv)
-
-    if args.command == "verify-source":
+    if argv[:1] == ["verify-source"]:
+        parser = argparse.ArgumentParser(prog="financial_charts")
+        subparsers = parser.add_subparsers(dest="command")
+        _add_verify_source_parser(subparsers)
+        args = parser.parse_args(argv)
         return _run_verify_source(args)
 
-    parser.print_help()
-    return 1
+    args = _render_parser().parse_args(argv)
+    return _run_render(args)
 
 
 if __name__ == "__main__":
