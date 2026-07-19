@@ -14,7 +14,9 @@ fixed, Qualtrim-style grid of charts all at once, for investor evaluation.
 - Test (single): `pytest -q path/to/test_file.py::test_name`
 - Lint: `ruff check`
 - Format: `ruff format`
-- Run locally: `python -m financial_charts <TICKER>`  <!-- entry point TBD -->
+- Run locally (CLI): `python -m financial_charts <TICKER> [--source --period --range --out]`
+- Run locally (web UI): `python -m financial_charts.web --port 8000`
+- Verify a source: `python -m financial_charts verify-source <name> --ticker <sample>`
 
 ## Principles
 
