@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date
+from typing import Callable
+
+from financial_charts.template.models import (
+    CompanyFundamentals,
+    Money,
+    MetricSeries,
+    Point,
+)
+
+
+@dataclass(frozen=True)
+class DerivedMetric:
+    """A metric computed from other declared metrics — never supplied by a source.
+
+    Available iff every metric in `inputs` is available on the fundamentals it's
+    resolved against; points are computed only for dates common to all inputs.
+    """
+
+    metric_id: str
+    title: str
+    inputs: tuple[str, ...]
+    compute: Callable[..., float]
+
+
+def resolve(fundamentals: CompanyFundamentals, derived: DerivedMetric) -> MetricSeries:
+    """Compute `derived`'s series from the base metrics already on `fundamentals`.
+
+    Availability resolves through the inputs: if any required input metric is
+    missing or unavailable, the whole derived series is unavailable — a source's
+    declared gap propagates to every quantity computed from it, so a chart can
+    gate on `derived.inputs` exactly like it gates on a normal metric.
+    """
+    input_series = [fundamentals.series.get(metric_id) for metric_id in derived.inputs]
+    if not input_series or any(
+        series is None or not series.available for series in input_series
+    ):
+        return MetricSeries(metric_id=derived.metric_id, available=False)
+
+    values_by_date: list[dict[date, Money | float]] = [
+        {point.date: point.value for point in series.points} for series in input_series
+    ]
+    common_dates = sorted(set.intersection(*(set(d) for d in values_by_date)))
+
+    points: list[Point] = []
+    for d in common_dates:
+        try:
+            value = derived.compute(*(values[d] for values in values_by_date))
+        except (ZeroDivisionError, ValueError):
+            # A single bad point (division by zero, a currency mismatch a
+            # `compute` fn didn't expect) degrades to a skipped point, never a
+            # crash — if every point fails this way the series ends up empty
+            # and callers see `available=False`, same as any other gap.
+            continue
+        points.append(Point(date=d, value=value))
+
+    return MetricSeries(
+        metric_id=derived.metric_id, points=points, available=bool(points)
+    )
+
+
+def ratio(numerator: Money, denominator: Money) -> float:
+    """A dimensionless ratio between two same-currency `Money` values.
+
+    Compares amounts via `as_base_units()` so the two operands' scales cancel
+    correctly — dividing raw `.value`s would silently misprice a metric declared
+    in millions against one declared in ones, the same trap `Money` exists to
+    prevent for addition.
+    """
+    if numerator.currency != denominator.currency:
+        raise ValueError(
+            "cannot compute a ratio across currencies: "
+            f"{numerator.currency} vs {denominator.currency}"
+        )
+    return numerator.as_base_units() / denominator.as_base_units()
+
+
+FCF_MARGIN = DerivedMetric(
+    metric_id="fcf_margin",
+    title="FCF Margin",
+    inputs=("free_cash_flow", "revenue"),
+    compute=ratio,
+)

@@ -13,12 +13,15 @@ from financial_charts.template.models import (
 
 
 def money_series(
-    metric_id: str, values: list[float], currency=Currency.USD
+    metric_id: str,
+    values: list[float],
+    currency=Currency.USD,
+    scale: Unit = Unit.ONES,
 ) -> MetricSeries:
     points = [
         Point(
             date=date(2020 + i, 1, 1),
-            value=Money(value=v, currency=currency, scale=Unit.ONES),
+            value=Money(value=v, currency=currency, scale=scale),
         )
         for i, v in enumerate(values)
     ]

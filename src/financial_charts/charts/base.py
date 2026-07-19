@@ -13,6 +13,27 @@ class Chart(Protocol):
     def render(self, ax: Axes, fundamentals: CompanyFundamentals) -> None: ...
 
 
+def draw_no_data(ax: Axes) -> None:
+    """Draw the shared "No Data" placeholder on `ax`.
+
+    Public so a chart whose data is unavailable only after computation (e.g. a
+    derived quantity whose inputs don't share any overlapping date) can fall
+    back to the same card as a chart with a missing required metric.
+    """
+    ax.text(
+        0.5,
+        0.5,
+        "No Data",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=14,
+        color="gray",
+    )
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+
 def render_or_no_data(
     chart: Chart, ax: Axes, fundamentals: CompanyFundamentals
 ) -> None:
@@ -28,18 +49,7 @@ def render_or_no_data(
     ]
     ax.set_title(chart.title)
     if missing:
-        ax.text(
-            0.5,
-            0.5,
-            "No Data",
-            ha="center",
-            va="center",
-            transform=ax.transAxes,
-            fontsize=14,
-            color="gray",
-        )
-        ax.set_xticks([])
-        ax.set_yticks([])
+        draw_no_data(ax)
         return
     chart.render(ax, fundamentals)
 

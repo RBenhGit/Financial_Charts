@@ -1,19 +1,14 @@
 from financial_charts.charts.base import Chart
-from financial_charts.charts.builtins.eps import EPSChart
-from financial_charts.charts.builtins.free_cash_flow import FreeCashFlowChart
-from financial_charts.charts.builtins.margins import MarginsChart
-from financial_charts.charts.builtins.net_income import NetIncomeChart
-from financial_charts.charts.builtins.price import PriceChart
-from financial_charts.charts.builtins.revenue import RevenueChart
+from financial_charts.charts.catalog import get_chart
 
 _CHART_SETS: dict[str, list[Chart]] = {
     "fundamentals": [
-        PriceChart(),
-        RevenueChart(),
-        NetIncomeChart(),
-        FreeCashFlowChart(),
-        EPSChart(),
-        MarginsChart(),
+        get_chart("price"),
+        get_chart("revenue"),
+        get_chart("net_income"),
+        get_chart("free_cash_flow"),
+        get_chart("eps"),
+        get_chart("margins"),
     ]
 }
 
