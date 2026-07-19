@@ -7,12 +7,17 @@ from financial_charts import config
 from financial_charts.cache.store import TemplateCache
 from financial_charts.dashboard.render import write_output
 from financial_charts.sources.base import (
+    Capability,
     MissingCredentials,
     SourceUnavailable,
     TickerNotFound,
 )
 from financial_charts.sources.market import market_of
-from financial_charts.sources.registry import get_source
+from financial_charts.sources.registry import (
+    get_capability,
+    get_source,
+    registered_sources,
+)
 from financial_charts.sources.validation import check_request
 from financial_charts.sources.verify import reconcile
 from financial_charts.template.models import CompanyFundamentals, Market, Period
@@ -149,6 +154,80 @@ def _run_verify_source(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_capabilities_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "capabilities",
+        help="Print a registered source's declared Capability (offline, no credentials)",
+    )
+    parser.add_argument(
+        "name", nargs="?", default=None, help="registered source name; omit for all"
+    )
+    parser.add_argument(
+        "--matrix",
+        action="store_true",
+        help="print a metric x source availability table instead",
+    )
+
+
+def _format_capability(name: str, capability: Capability) -> str:
+    markets = ", ".join(sorted(m.value for m in capability.markets))
+    periods = ", ".join(sorted(p.value for p in capability.periods))
+    history = ", ".join(
+        f"{period.value}={years}y"
+        for period, years in sorted(
+            capability.max_history.items(), key=lambda kv: kv[0].value
+        )
+    )
+    metrics = ", ".join(sorted(capability.metrics))
+    return (
+        f"capabilities: {name}\n"
+        f"  markets:      {markets}\n"
+        f"  periods:      {periods}\n"
+        f"  max_history:  {history}\n"
+        f"  metrics:      {metrics}"
+    )
+
+
+def _format_matrix(names: list[str]) -> str:
+    capabilities = {name: get_capability(name) for name in names}
+    all_metrics = sorted(set().union(*(c.metrics for c in capabilities.values())))
+    metric_col = max(len(m) for m in all_metrics) + 2
+    source_col = max(len(n) for n in names) + 2
+
+    lines = ["capability matrix (metric x source):"]
+    lines.append(" " * metric_col + "".join(n.ljust(source_col) for n in names))
+    for metric in all_metrics:
+        row = metric.ljust(metric_col)
+        for name in names:
+            row += ("x" if metric in capabilities[name].metrics else "-").ljust(
+                source_col
+            )
+        lines.append(row)
+    return "\n".join(lines)
+
+
+def _run_capabilities(args: argparse.Namespace) -> int:
+    if args.name:
+        try:
+            get_capability(args.name)
+        except KeyError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        names = [args.name]
+    else:
+        names = registered_sources()
+
+    if args.matrix:
+        print(_format_matrix(names))
+    else:
+        print(
+            "\n\n".join(
+                _format_capability(name, get_capability(name)) for name in names
+            )
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
 
@@ -158,6 +237,13 @@ def main(argv: list[str] | None = None) -> int:
         _add_verify_source_parser(subparsers)
         args = parser.parse_args(argv)
         return _run_verify_source(args)
+
+    if argv[:1] == ["capabilities"]:
+        parser = argparse.ArgumentParser(prog="financial_charts")
+        subparsers = parser.add_subparsers(dest="command")
+        _add_capabilities_parser(subparsers)
+        args = parser.parse_args(argv)
+        return _run_capabilities(args)
 
     args = _render_parser().parse_args(argv)
     return _run_render(args)

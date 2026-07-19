@@ -133,3 +133,47 @@ def test_verify_source_subcommand_dispatches(monkeypatch, capsys):
 
     assert code == 0
     assert "RESULT: clean" in capsys.readouterr().out
+
+
+def test_capabilities_subcommand_prints_single_source(capsys):
+    code = main(["capabilities", "yfinance"])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "capabilities: yfinance" in out
+    assert "price" in out
+
+
+def test_capabilities_subcommand_prints_all_sources_when_no_name(capsys):
+    code = main(["capabilities"])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "capabilities: yfinance" in out
+    assert "capabilities: twelvedata" in out
+
+
+def test_capabilities_subcommand_unknown_source_returns_error(capsys):
+    code = main(["capabilities", "not-a-real-source"])
+
+    assert code == 1
+    assert "unknown data source" in capsys.readouterr().err
+
+
+def test_capabilities_matrix_flag_prints_table(capsys):
+    code = main(["capabilities", "--matrix"])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "capability matrix" in out
+    assert "yfinance" in out
+    assert "twelvedata" in out
+
+
+def test_capabilities_requires_no_credentials(monkeypatch, capsys):
+    monkeypatch.delenv("TWELVEDATA_API_KEY", raising=False)
+
+    code = main(["capabilities", "twelvedata"])
+
+    assert code == 0
+    assert "capabilities: twelvedata" in capsys.readouterr().out

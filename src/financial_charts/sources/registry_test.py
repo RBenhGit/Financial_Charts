@@ -3,9 +3,14 @@ from unittest.mock import patch
 import pytest
 
 from financial_charts.sources.base import MissingCredentials
-from financial_charts.sources.registry import get_source
+from financial_charts.sources.registry import (
+    get_capability,
+    get_source,
+    registered_sources,
+)
 from financial_charts.sources.twelvedata.adapter import TwelveDataAdapter
 from financial_charts.sources.yfinance.adapter import YFinanceAdapter
+from financial_charts.template.models import Period
 
 
 def test_resolves_yfinance():
@@ -29,3 +34,24 @@ def test_twelvedata_without_credentials_raises_missing_credentials():
 def test_unknown_source_raises_key_error():
     with pytest.raises(KeyError):
         get_source("not-a-real-source")
+
+
+def test_registered_sources_lists_all():
+    assert registered_sources() == ["twelvedata", "yfinance"]
+
+
+def test_get_capability_twelvedata_requires_no_credentials():
+    with patch.dict("os.environ", {}, clear=True):
+        capability = get_capability("twelvedata")
+    assert capability.max_history[Period.ANNUAL] == 10
+
+
+def test_get_capability_yfinance_matches_declared_metrics():
+    capability = get_capability("yfinance")
+    assert "price" in capability.metrics
+    assert capability.max_history[Period.ANNUAL] == 4
+
+
+def test_get_capability_unknown_source_raises_key_error():
+    with pytest.raises(KeyError):
+        get_capability("not-a-real-source")
