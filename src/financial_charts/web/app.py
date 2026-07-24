@@ -10,7 +10,7 @@ from financial_charts.sources.base import (
     TickerNotFound,
     UnsupportedPeriod,
 )
-from financial_charts.sources.market import is_valid_ticker
+from financial_charts.sources.market import is_valid_ticker, normalize_ticker
 from financial_charts.sources.ranges import RANGES
 from financial_charts.sources.registry import get_source
 from financial_charts.sources.validation import require_supported_period
@@ -82,6 +82,7 @@ def create_app() -> Flask:
             return render_template(
                 "error.html", message=f"Invalid ticker: {ticker}"
             ), 400
+        ticker = normalize_ticker(ticker)
 
         source_name = request.args.get("source") or config.data_source_name()
         period_value = request.args.get("period") or config.DEFAULT_PERIOD

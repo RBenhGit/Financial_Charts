@@ -130,6 +130,36 @@ def test_render_uses_cache_before_fetching(tmp_path, monkeypatch):
     assert len(fetch_calls) == 1
 
 
+def test_render_normalizes_lowercase_ticker(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "out.html"
+    fetch_calls = []
+
+    class _RecordingAdapter(_StubAdapter):
+        def fetch(self, ticker, market, period, range):
+            fetch_calls.append(ticker)
+            return super().fetch(ticker, market, period, range)
+
+    with patch(
+        "financial_charts.__main__.get_source", return_value=_RecordingAdapter()
+    ):
+        code = main(["aapl", "--out", str(out)])
+
+    assert code == 0
+    assert fetch_calls == ["AAPL"]
+    assert out.name == "out.html"
+
+
+def test_render_default_output_path_uses_normalized_ticker(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    with patch("financial_charts.__main__.get_source", return_value=_StubAdapter()):
+        code = main(["aapl"])
+
+    assert code == 0
+    assert (tmp_path / "out" / "AAPL.html").exists()
+
+
 def test_render_with_charts_flag_selects_only_named_charts(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = tmp_path / "out.html"

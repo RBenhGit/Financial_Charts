@@ -1,4 +1,4 @@
-from financial_charts.sources.market import is_valid_ticker, market_of
+from financial_charts.sources.market import is_valid_ticker, market_of, normalize_ticker
 from financial_charts.template.models import Market
 
 
@@ -27,3 +27,8 @@ def test_path_traversal_ticker_is_rejected():
 
 def test_empty_ticker_is_rejected():
     assert not is_valid_ticker("")
+
+
+def test_normalize_ticker_uppercases_and_strips():
+    assert normalize_ticker("aapl") == "AAPL"
+    assert normalize_ticker(" teva.ta ") == "TEVA.TA"

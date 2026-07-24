@@ -21,3 +21,14 @@ def is_valid_ticker(ticker: str) -> bool:
     filesystem.
     """
     return bool(ticker) and bool(_VALID_TICKER.match(ticker))
+
+
+def normalize_ticker(ticker: str) -> str:
+    """Canonical uppercase form of a validated ticker.
+
+    Callers should apply this once, right after `is_valid_ticker`, so every
+    downstream consumer (adapters' own `.TA`-suffix stripping, cache keys,
+    output filenames) sees one consistent case rather than each having to
+    re-normalize independently.
+    """
+    return ticker.strip().upper()

@@ -158,6 +158,16 @@ def test_render_with_empty_charts_param_falls_back_to_chart_set(client):
     assert response.status_code == 200
 
 
+def test_render_normalizes_lowercase_ticker(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()
+    ) as mock_load:
+        response = client.get("/render?ticker=aapl&charts=price")
+
+    assert response.status_code == 200
+    mock_load.assert_called_once_with("AAPL", "yfinance", Period.ANNUAL, "5y")
+
+
 def test_render_rejects_invalid_ticker(client):
     response = client.get("/render?ticker=../../etc/passwd")
 

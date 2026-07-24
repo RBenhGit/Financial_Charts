@@ -22,7 +22,7 @@ from financial_charts.sources.commission import (
     is_degenerate,
     write_capability_module,
 )
-from financial_charts.sources.market import is_valid_ticker, market_of
+from financial_charts.sources.market import is_valid_ticker, market_of, normalize_ticker
 from financial_charts.sources.ranges import RANGES
 from financial_charts.sources.registry import (
     get_capability,
@@ -145,6 +145,7 @@ def _run_render(args: argparse.Namespace) -> int:
     if not is_valid_ticker(ticker):
         print(f"error: invalid ticker: {ticker!r}", file=sys.stderr)
         return 1
+    ticker = normalize_ticker(ticker)
 
     market = market_of(ticker)
     period = Period(args.period)
