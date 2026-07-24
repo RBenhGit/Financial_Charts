@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from financial_charts.sources.base import TickerNotFound
+from financial_charts.sources.base import SourceUnavailable, TickerNotFound
 from financial_charts.sources.yfinance.adapter import YFinanceAdapter
 from financial_charts.template.models import Currency, Market, Period
 
@@ -119,3 +119,27 @@ def test_declares_capability():
     assert Market.US in capability.markets
     assert Market.TASE in capability.markets
     assert "price" in capability.metrics
+
+
+def test_network_failure_raises_source_unavailable():
+    class _BrokenTicker:
+        @property
+        def info(self):
+            raise ConnectionError("network is down")
+
+    with patch(
+        "financial_charts.sources.yfinance.adapter.yf.Ticker",
+        lambda _ticker: _BrokenTicker(),
+    ):
+        with pytest.raises(SourceUnavailable):
+            YFinanceAdapter().fetch("AAPL", Market.US, Period.ANNUAL, "1y")
+
+
+def test_statement_series_points_are_ascending_by_date():
+    # yfinance's statement columns come back newest-first; the adapter must
+    # sort them ascending so every series in one fetch runs the same
+    # chronological direction as price.
+    fundamentals = _fetch_with_fixture("aapl", "AAPL", Market.US, Period.ANNUAL, "5y")
+
+    revenue_dates = [p.date for p in fundamentals.series["revenue"].points]
+    assert revenue_dates == sorted(revenue_dates)

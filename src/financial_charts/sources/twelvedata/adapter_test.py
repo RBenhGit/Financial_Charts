@@ -3,8 +3,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import requests
 
-from financial_charts.sources.base import MissingCredentials, TickerNotFound
+from financial_charts.sources.base import (
+    MissingCredentials,
+    SourceUnavailable,
+    TickerNotFound,
+)
 from financial_charts.sources.twelvedata.adapter import TwelveDataAdapter
 from financial_charts.template.models import Currency, Market, Period
 
@@ -102,3 +107,48 @@ def test_declares_capability():
     assert Market.US in capability.markets
     assert Market.TASE in capability.markets
     assert capability.max_history[Period.ANNUAL] == 10
+
+
+def test_transport_failure_raises_source_unavailable():
+    with (
+        patch(
+            "financial_charts.sources.twelvedata.adapter.requests.get",
+            side_effect=requests.ConnectionError("network is down"),
+        ),
+        patch.dict("os.environ", {"TWELVEDATA_API_KEY": "test-key"}),
+    ):
+        with pytest.raises(SourceUnavailable):
+            TwelveDataAdapter().fetch("AAPL", Market.US, Period.ANNUAL, "1y")
+
+
+def test_income_row_missing_fiscal_date_is_skipped_not_a_crash():
+    fixture = _load("aapl")
+    malformed_row = {k: v for k, v in fixture["income"]["income_statement"][0].items()}
+    del malformed_row["fiscal_date"]
+    responses = {
+        "time_series": fixture["price"],
+        "income_statement": {
+            "income_statement": [
+                malformed_row,
+                *fixture["income"]["income_statement"][1:],
+            ],
+            "meta": fixture["income"]["meta"],
+        },
+        "cash_flow": fixture["cashflow"],
+    }
+
+    def fake_get(self, endpoint: str, **params) -> dict:
+        return responses[endpoint]
+
+    with (
+        patch(
+            "financial_charts.sources.twelvedata.adapter.TwelveDataAdapter._get",
+            fake_get,
+        ),
+        patch.dict("os.environ", {"TWELVEDATA_API_KEY": "test-key"}),
+    ):
+        fundamentals = TwelveDataAdapter().fetch("AAPL", Market.US, Period.ANNUAL, "5y")
+
+    revenue = fundamentals.series["revenue"]
+    assert revenue.available
+    assert len(revenue.points) == len(fixture["income"]["income_statement"]) - 1

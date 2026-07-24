@@ -1,7 +1,8 @@
 import pandas as pd
 import yfinance as yf
 
-from financial_charts.sources.base import Capability, TickerNotFound
+from financial_charts.sources.base import Capability, SourceUnavailable, TickerNotFound
+from financial_charts.sources.currency import AGOROT_CODE, map_currency
 from financial_charts.sources.yfinance.capability import CAPABILITY
 from financial_charts.template.models import (
     CompanyFundamentals,
@@ -24,14 +25,6 @@ _YFINANCE_PERIODS = {
     "max": "max",
 }
 
-_CURRENCY_BY_CODE = {"USD": Currency.USD, "ILS": Currency.ILS}
-
-
-def _map_currency(code: str | None) -> Currency | None:
-    if code == "ILA":
-        return Currency.ILS  # agorot; converted to shekels at the value level
-    return _CURRENCY_BY_CODE.get(code or "")
-
 
 class YFinanceAdapter:
     def capability(self) -> Capability:
@@ -40,14 +33,30 @@ class YFinanceAdapter:
     def fetch(
         self, ticker: str, market: Market, period: Period, range: str
     ) -> CompanyFundamentals:
+        """Fetch and translate any yfinance/network failure to `SourceUnavailable`.
+
+        `TickerNotFound` is raised by `_fetch` itself and passes through
+        unchanged so callers can tell "no such ticker" from "source is down"
+        (only the latter triggers the stale-cache fallback).
+        """
+        try:
+            return self._fetch(ticker, market, period, range)
+        except TickerNotFound:
+            raise
+        except Exception as exc:
+            raise SourceUnavailable(str(exc)) from exc
+
+    def _fetch(
+        self, ticker: str, market: Market, period: Period, range: str
+    ) -> CompanyFundamentals:
         yf_ticker = yf.Ticker(ticker)
         info = yf_ticker.info
         history = yf_ticker.history(period=_range_to_yfinance_period(range))
         if history.empty and len(info) <= 1:
             raise TickerNotFound(ticker)
 
-        price_currency = _map_currency(info.get("currency"))
-        financial_currency = _map_currency(info.get("financialCurrency"))
+        price_currency = map_currency(info.get("currency"))
+        financial_currency = map_currency(info.get("financialCurrency"))
         display_currency = Currency.ILS if market == Market.TASE else Currency.USD
 
         series: dict[str, MetricSeries] = {}
@@ -57,6 +66,9 @@ class YFinanceAdapter:
             history, info.get("currency"), price_currency, source_limits
         )
 
+        # `range` only bounds this price fetch (via `history(period=...)`);
+        # yfinance's `financials`/`cashflow` properties return whatever depth
+        # the API gives regardless of the requested range.
         statements = (
             (yf_ticker.financials, yf_ticker.cashflow)
             if period == Period.ANNUAL
@@ -128,7 +140,7 @@ def _price_series(
         source_limits.append("price: no data available for this ticker")
         return MetricSeries(metric_id="price", points=[], available=False)
 
-    is_agorot = raw_currency_code == "ILA"
+    is_agorot = raw_currency_code == AGOROT_CODE
     points = [
         Point(
             date=idx.date(),
@@ -164,6 +176,10 @@ def _statement_series(
         for col, val in row.items()
         if pd.notna(val)
     ]
+    # yfinance's statement columns come back newest-first; sort ascending to
+    # match price and Twelve Data so every series in one CompanyFundamentals
+    # runs the same chronological direction.
+    points.sort(key=lambda p: p.date)
     if not points:
         source_limits.append(f"{metric_id}: no data available for this ticker")
         return MetricSeries(metric_id=metric_id, points=[], available=False)
@@ -192,6 +208,7 @@ def _margin_series(
         num, den = numerator.get(col), denominator.get(col)
         if pd.notna(num) and pd.notna(den) and den != 0:
             points.append(Point(date=col.date(), value=float(num) / float(den)))
+    points.sort(key=lambda p: p.date)
     if not points:
         source_limits.append(f"{metric_id}: no data available for this ticker")
         return MetricSeries(metric_id=metric_id, points=[], available=False)

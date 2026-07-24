@@ -9,6 +9,7 @@ from financial_charts.sources.base import (
     SourceUnavailable,
     TickerNotFound,
 )
+from financial_charts.sources.currency import AGOROT_CODE, map_currency
 from financial_charts.sources.twelvedata.capability import CAPABILITY
 from financial_charts.template.models import (
     CompanyFundamentals,
@@ -33,14 +34,6 @@ _PRICE_INTERVAL_BY_RANGE = {
     "max": ("1month", 240),
 }
 
-_CURRENCY_BY_CODE = {"USD": Currency.USD, "ILS": Currency.ILS}
-
-
-def _map_currency(code: str | None) -> Currency | None:
-    if code == "ILA":
-        return Currency.ILS  # agorot; converted to shekels at the value level
-    return _CURRENCY_BY_CODE.get(code or "")
-
 
 class TwelveDataAdapter:
     def __init__(self, api_key: str | None = None):
@@ -58,6 +51,9 @@ class TwelveDataAdapter:
         symbol = ticker.removesuffix(".TA") if market == Market.TASE else ticker
         mic_code = "XTAE" if market == Market.TASE else None
 
+        # `range` only bounds this price fetch (via `_price_params`'s
+        # `outputsize`); the income_statement/cash_flow endpoints below take no
+        # range/date param, so they return whatever depth Twelve Data gives.
         price_json = self._get(
             "time_series", symbol=symbol, mic_code=mic_code, **_price_params(range)
         )
@@ -76,7 +72,7 @@ class TwelveDataAdapter:
         }
         income_statement = income_json.get("income_statement", [])
         cashflow_statement = cashflow_json.get("cash_flow", [])
-        financial_currency = _map_currency(income_json.get("meta", {}).get("currency"))
+        financial_currency = map_currency(income_json.get("meta", {}).get("currency"))
 
         series["revenue"] = _income_series(
             income_statement, "sales", financial_currency, "revenue", source_limits
@@ -114,7 +110,10 @@ class TwelveDataAdapter:
     def _get(self, endpoint: str, **params) -> dict:
         query = {k: v for k, v in params.items() if v is not None}
         query["apikey"] = self._api_key
-        response = requests.get(f"{_BASE_URL}/{endpoint}", params=query, timeout=30)
+        try:
+            response = requests.get(f"{_BASE_URL}/{endpoint}", params=query, timeout=30)
+        except requests.RequestException as exc:
+            raise SourceUnavailable(f"twelvedata request failed: {exc}") from exc
         try:
             payload = response.json()
         except ValueError as exc:
@@ -137,12 +136,12 @@ def _price_params(range: str) -> dict:
 def _price_series(price_json: dict, source_limits: list[str]) -> MetricSeries:
     meta = price_json.get("meta", {})
     values = price_json.get("values", [])
-    currency = _map_currency(meta.get("currency"))
+    currency = map_currency(meta.get("currency"))
     if not values or currency is None:
         source_limits.append("price: no data available for this ticker")
         return MetricSeries(metric_id="price", points=[], available=False)
 
-    is_agorot = meta.get("currency") == "ILA"
+    is_agorot = meta.get("currency") == AGOROT_CODE
     points = [
         Point(
             date=row["datetime"],
@@ -153,6 +152,7 @@ def _price_series(price_json: dict, source_limits: list[str]) -> MetricSeries:
             ),
         )
         for row in reversed(values)
+        if row.get("datetime") is not None and row.get("close") is not None
     ]
     return MetricSeries(metric_id="price", points=points, available=True)
 
@@ -174,7 +174,7 @@ def _income_series(
             value=Money(value=float(row[field]), currency=currency, scale=Unit.ONES),
         )
         for row in reversed(income_statement)
-        if row.get(field) is not None
+        if row.get("fiscal_date") is not None and row.get(field) is not None
     ]
     if not points:
         source_limits.append(f"{metric_id}: no data available for this ticker")
@@ -191,6 +191,8 @@ def _cashflow_series(
 
     points = []
     for row in reversed(cashflow_statement):
+        if row.get("fiscal_date") is None:
+            continue
         fcf = row.get("free_cash_flow")
         if fcf is None:
             operating = row.get("operating_activities", {}).get("operating_cash_flow")
@@ -222,6 +224,8 @@ def _margin_series(
 ) -> MetricSeries:
     points = []
     for row in reversed(income_statement):
+        if row.get("fiscal_date") is None:
+            continue
         num, den = row.get(numerator_field), row.get(denominator_field)
         if num is not None and den:
             points.append(Point(date=row["fiscal_date"], value=float(num) / float(den)))
