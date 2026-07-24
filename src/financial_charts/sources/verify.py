@@ -15,7 +15,7 @@ class ReconciliationReport(BaseModel):
 
     @property
     def has_mismatch(self) -> bool:
-        return bool(self.missing_metrics)
+        return bool(self.missing_metrics) or bool(self.unit_warnings)
 
 
 def reconcile(

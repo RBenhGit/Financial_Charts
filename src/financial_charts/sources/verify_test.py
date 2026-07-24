@@ -168,3 +168,6 @@ def test_unconverted_agorot_price_triggers_unit_warning():
 
     assert len(report.unit_warnings) == 1
     assert "agorot" in report.unit_warnings[0]
+    # verify-source exists specifically to catch this TASE gotcha — a detected
+    # unit warning must fail the reconciliation, not just be printed as a note.
+    assert report.has_mismatch
