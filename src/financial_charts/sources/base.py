@@ -36,3 +36,7 @@ class SourceUnavailable(Exception):
 
 class MissingCredentials(Exception):
     pass
+
+
+class UnsupportedPeriod(Exception):
+    pass

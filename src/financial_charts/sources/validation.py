@@ -1,15 +1,20 @@
-from financial_charts.sources.base import Capability
+from financial_charts.sources.base import Capability, UnsupportedPeriod
+from financial_charts.sources.ranges import range_years
 from financial_charts.template.models import Market, Period
 
-# Range strings, ordered shortest to longest, mapped to the number of years they span.
-_RANGE_YEARS: dict[str, int] = {
-    "6m": 1,
-    "1y": 1,
-    "3y": 3,
-    "5y": 5,
-    "10y": 10,
-    "max": 10_000,
-}
+
+def require_supported_period(capability: Capability, period: Period) -> None:
+    """Raise `UnsupportedPeriod` before a fetch, rather than letting an adapter
+    silently mistreat an unsupported period as one it does support (e.g.
+    yfinance treating a TTM request as quarterly).
+
+    `check_request` also flags an unsupported period, but only as an advisory
+    limit computed *after* a successful fetch — this is a separate, additive
+    pre-fetch gate for the one case where fetching under the wrong period
+    would return data mislabeled as something it isn't.
+    """
+    if period not in capability.periods:
+        raise UnsupportedPeriod(f"source does not support period {period.value}")
 
 
 def check_request(
@@ -30,13 +35,13 @@ def check_request(
         limits.append(f"source does not support period {period.value}")
         return limits
 
-    requested_years = _RANGE_YEARS.get(range.lower())
+    requested_years = range_years(range)
+    if requested_years is None:
+        limits.append(f"unrecognized range {range!r}")
+        return limits
+
     max_years = capability.max_history.get(period)
-    if (
-        requested_years is not None
-        and max_years is not None
-        and requested_years > max_years
-    ):
+    if max_years is not None and requested_years > max_years:
         limits.append(
             f"requested range {range} exceeds source's {max_years}y history for {period.value}"
         )

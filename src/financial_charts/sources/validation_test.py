@@ -1,5 +1,7 @@
-from financial_charts.sources.base import Capability
-from financial_charts.sources.validation import check_request
+import pytest
+
+from financial_charts.sources.base import Capability, UnsupportedPeriod
+from financial_charts.sources.validation import check_request, require_supported_period
 from financial_charts.template.models import Market, Period
 
 
@@ -38,3 +40,22 @@ def test_unsupported_period_is_flagged_and_skips_history_check():
     limits = check_request(cap, Market.US, Period.QUARTERLY, "1y")
     assert len(limits) == 1
     assert "quarterly" in limits[0]
+
+
+def test_unrecognized_range_is_explicitly_flagged():
+    cap = _capability(max_history={Period.ANNUAL: 4})
+    limits = check_request(cap, Market.US, Period.ANNUAL, "8y")
+    assert len(limits) == 1
+    assert "8y" in limits[0]
+    assert "unrecognized" in limits[0]
+
+
+def test_require_supported_period_raises_for_unsupported_period():
+    cap = _capability(periods={Period.ANNUAL})
+    with pytest.raises(UnsupportedPeriod, match="ttm"):
+        require_supported_period(cap, Period.TTM)
+
+
+def test_require_supported_period_passes_for_supported_period():
+    cap = _capability(periods={Period.ANNUAL})
+    require_supported_period(cap, Period.ANNUAL)  # does not raise
