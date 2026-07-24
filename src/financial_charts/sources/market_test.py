@@ -1,4 +1,4 @@
-from financial_charts.sources.market import market_of
+from financial_charts.sources.market import is_valid_ticker, market_of
 from financial_charts.template.models import Market
 
 
@@ -12,3 +12,18 @@ def test_bare_ticker_routes_to_us():
 
 def test_ta_suffix_is_case_insensitive():
     assert market_of("teva.ta") == Market.TASE
+
+
+def test_valid_tickers_are_accepted():
+    assert is_valid_ticker("AAPL")
+    assert is_valid_ticker("TEVA.TA")
+    assert is_valid_ticker("BRK-B")
+
+
+def test_path_traversal_ticker_is_rejected():
+    assert not is_valid_ticker("../../etc/passwd")
+    assert not is_valid_ticker("../../../tmp/evil")
+
+
+def test_empty_ticker_is_rejected():
+    assert not is_valid_ticker("")

@@ -89,7 +89,7 @@ def test_render_unknown_ticker_shows_not_found(client):
 
 def test_render_missing_credentials_names_env_var(client):
     with patch(
-        "financial_charts.web.app.load_fundamentals",
+        "financial_charts.web.app.get_source",
         side_effect=MissingCredentials("TWELVEDATA_API_KEY is not set"),
     ):
         response = client.get("/render?ticker=AAPL&source=twelvedata")
@@ -111,6 +111,13 @@ def test_index_lists_available_charts(client):
     body = response.get_data(as_text=True)
     assert 'name="charts"' in body
     assert 'value="fcf_margin"' in body
+
+
+def test_index_annotates_charts_with_supporting_sources(client):
+    response = client.get("/")
+
+    body = response.get_data(as_text=True)
+    assert "Supported by: twelvedata, yfinance" in body
 
 
 def test_render_with_charts_param_selects_only_named_charts(client):
@@ -149,3 +156,33 @@ def test_render_with_empty_charts_param_falls_back_to_chart_set(client):
         response = client.get("/render?ticker=AAPL&charts=")
 
     assert response.status_code == 200
+
+
+def test_render_rejects_invalid_ticker(client):
+    response = client.get("/render?ticker=../../etc/passwd")
+
+    assert response.status_code == 400
+    assert "Invalid ticker" in response.get_data(as_text=True)
+
+
+def test_render_rejects_unsupported_period(client):
+    response = client.get("/render?ticker=AAPL&period=notaperiod")
+
+    assert response.status_code == 400
+    assert "Unsupported period" in response.get_data(as_text=True)
+
+
+def test_render_rejects_unsupported_range(client):
+    response = client.get("/render?ticker=AAPL&range=8y")
+
+    assert response.status_code == 400
+    assert "Unsupported range" in response.get_data(as_text=True)
+
+
+def test_render_rejects_ttm_period_before_fetching(client):
+    with patch("financial_charts.web.app.load_fundamentals") as mock_load:
+        response = client.get("/render?ticker=AAPL&period=ttm")
+
+    assert response.status_code == 400
+    assert "does not support period ttm" in response.get_data(as_text=True)
+    mock_load.assert_not_called()

@@ -1,37 +1,40 @@
 import argparse
 import sys
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
-from financial_charts import config
+from financial_charts import chart_support, config
 from financial_charts.cache.store import TemplateCache
 from financial_charts.charts.catalog import get_chart
-from financial_charts.charts.registry import register_chart_set
+from financial_charts.charts.registry import get_chart_set, register_chart_set
 from financial_charts.dashboard.render import write_output
 from financial_charts.sources.base import (
     Capability,
     MissingCredentials,
     SourceUnavailable,
     TickerNotFound,
+    UnsupportedPeriod,
 )
 from financial_charts.sources.commission import (
     capability_module_path,
     commission,
+    is_degenerate,
     write_capability_module,
 )
-from financial_charts.sources.market import market_of
+from financial_charts.sources.market import is_valid_ticker, market_of
+from financial_charts.sources.ranges import RANGES
 from financial_charts.sources.registry import (
     get_capability,
     get_source,
     registered_sources,
 )
-from financial_charts.sources.validation import check_request
+from financial_charts.sources.validation import check_request, require_supported_period
 from financial_charts.sources.verify import reconcile
 from financial_charts.template.models import CompanyFundamentals, Market, Period
 
 
-def _render_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="financial_charts")
+def _add_render_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("ticker", help="e.g. AAPL (US) or TEVA.TA (TASE)")
     parser.add_argument(
         "--source", default=None, help="overrides the DATA_SOURCE env var"
@@ -39,7 +42,9 @@ def _render_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--period", choices=[p.value for p in Period], default=config.DEFAULT_PERIOD
     )
-    parser.add_argument("--range", default=config.DEFAULT_RANGE)
+    parser.add_argument(
+        "--range", type=str.lower, choices=RANGES, default=config.DEFAULT_RANGE
+    )
     parser.add_argument(
         "--chart-set", dest="chart_set", default=config.DEFAULT_CHART_SET
     )
@@ -51,7 +56,6 @@ def _render_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out", default=None, help="output path (.html, .png, or .pdf)"
     )
-    return parser
 
 
 def _dedup_chart_ids(raw_ids: list[str]) -> list[str]:
@@ -79,6 +83,11 @@ def _resolve_chart_set_name(args: argparse.Namespace) -> str | None:
     overriding `--chart-set`; otherwise the named set is used as-is.
     """
     if not args.charts:
+        try:
+            get_chart_set(args.chart_set)
+        except KeyError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return None
         return args.chart_set
 
     chart_ids = _dedup_chart_ids(args.charts.split(","))
@@ -133,6 +142,10 @@ def _fetch_with_cache_fallback(
 
 def _run_render(args: argparse.Namespace) -> int:
     ticker = args.ticker
+    if not is_valid_ticker(ticker):
+        print(f"error: invalid ticker: {ticker!r}", file=sys.stderr)
+        return 1
+
     market = market_of(ticker)
     period = Period(args.period)
     source_name = args.source or config.data_source_name()
@@ -144,6 +157,12 @@ def _run_render(args: argparse.Namespace) -> int:
     try:
         adapter = get_source(source_name)
     except (KeyError, MissingCredentials) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        require_supported_period(adapter.capability(), period)
+    except UnsupportedPeriod as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -167,9 +186,20 @@ def _run_render(args: argparse.Namespace) -> int:
         for limit in check_request(adapter.capability(), market, period, args.range)
         if limit not in fundamentals.source_limits
     )
+    fundamentals.source_limits.extend(
+        limit
+        for limit in chart_support.capability_limits(
+            get_chart_set(chart_set_name), adapter.capability()
+        )
+        if limit not in fundamentals.source_limits
+    )
 
     out_path = Path(args.out) if args.out else Path("out") / f"{ticker}.html"
-    write_output(fundamentals, out_path, chart_set_name)
+    try:
+        write_output(fundamentals, out_path, chart_set_name)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     print(f"wrote {out_path}")
     return 0
 
@@ -330,6 +360,14 @@ def _run_commission_source(args: argparse.Namespace) -> int:
     print(_format_capability(args.name, certificate.capability))
     print()
 
+    if is_degenerate(certificate):
+        print(
+            "error: every sample failed — this looks like a wholesale outage, "
+            "not a real capability change; refusing to overwrite capability.py",
+            file=sys.stderr,
+        )
+        return 1
+
     path = capability_module_path(args.name)
     print(f"overwriting {path} — review the diff before committing")
     write_capability_module(certificate)
@@ -337,32 +375,51 @@ def _run_commission_source(args: argparse.Namespace) -> int:
     return 0
 
 
+_COMMANDS = ("render", "verify-source", "capabilities", "commission-source")
+
+_DISPATCH: dict[str, Callable[[argparse.Namespace], int]] = {
+    "render": _run_render,
+    "verify-source": _run_verify_source,
+    "capabilities": _run_capabilities,
+    "commission-source": _run_commission_source,
+}
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="financial_charts")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    render_parser = subparsers.add_parser(
+        "render", help="Render a ticker's dashboard (the default command)"
+    )
+    _add_render_arguments(render_parser)
+
+    _add_verify_source_parser(subparsers)
+    _add_capabilities_parser(subparsers)
+    _add_commission_source_parser(subparsers)
+
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
 
-    if argv[:1] == ["verify-source"]:
-        parser = argparse.ArgumentParser(prog="financial_charts")
-        subparsers = parser.add_subparsers(dest="command")
-        _add_verify_source_parser(subparsers)
-        args = parser.parse_args(argv)
-        return _run_verify_source(args)
+    # `render` is the implicit default command, so `financial_charts AAPL ...`
+    # keeps working without typing `render` explicitly; `-h`/`--help` and the
+    # three other command names are left alone so top-level `--help` still
+    # lists every command. This can't fully disambiguate a mistyped subcommand
+    # from an unusual ticker string (e.g. `financial_charts capabilites` is
+    # parsed as ticker "capabilites", not an error) — fully closing that would
+    # require a mandatory verb, breaking the documented
+    # `financial_charts <TICKER> ...` CLI. What this does fix: one real
+    # argparse parser (consistent errors, full --help) instead of three
+    # hand-rolled throwaway ones.
+    first = argv[0] if argv else None
+    if first not in (*_COMMANDS, "-h", "--help"):
+        argv = ["render", *argv]
 
-    if argv[:1] == ["capabilities"]:
-        parser = argparse.ArgumentParser(prog="financial_charts")
-        subparsers = parser.add_subparsers(dest="command")
-        _add_capabilities_parser(subparsers)
-        args = parser.parse_args(argv)
-        return _run_capabilities(args)
-
-    if argv[:1] == ["commission-source"]:
-        parser = argparse.ArgumentParser(prog="financial_charts")
-        subparsers = parser.add_subparsers(dest="command")
-        _add_commission_source_parser(subparsers)
-        args = parser.parse_args(argv)
-        return _run_commission_source(args)
-
-    args = _render_parser().parse_args(argv)
-    return _run_render(args)
+    args = _build_parser().parse_args(argv)
+    return _DISPATCH[args.command](args)
 
 
 if __name__ == "__main__":

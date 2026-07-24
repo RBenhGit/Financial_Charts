@@ -1,6 +1,8 @@
 from datetime import date
 from unittest.mock import patch
 
+import pytest
+
 from financial_charts.__main__ import main
 from financial_charts.sources.base import Capability, MissingCredentials, TickerNotFound
 from financial_charts.sources.commission import CommissionCertificate, SampleResult
@@ -178,6 +180,98 @@ def test_render_with_empty_charts_flag_returns_error(tmp_path, monkeypatch, caps
     assert "no charts specified" in capsys.readouterr().err
 
 
+def test_render_with_unknown_chart_set_returns_error_without_fetching(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+    fetch_calls = []
+
+    class _CountingAdapter(_StubAdapter):
+        def fetch(self, ticker, market, period, range):
+            fetch_calls.append(ticker)
+            return super().fetch(ticker, market, period, range)
+
+    with patch("financial_charts.__main__.get_source", return_value=_CountingAdapter()):
+        code = main(
+            [
+                "AAPL",
+                "--chart-set",
+                "not-a-real-set",
+                "--out",
+                str(tmp_path / "out.html"),
+            ]
+        )
+
+    assert code == 1
+    assert "unknown chart set" in capsys.readouterr().err
+    assert fetch_calls == []
+    assert not (tmp_path / ".cache").exists()
+
+
+def test_render_rejects_invalid_ticker(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    code = main(["../../etc/passwd", "--out", str(tmp_path / "out.html")])
+
+    assert code == 1
+    assert "invalid ticker" in capsys.readouterr().err
+
+
+def test_render_rejects_unsupported_range(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main(["AAPL", "--range", "8y"])
+
+    assert exc_info.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_render_ttm_period_is_rejected_before_fetching(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    fetch_calls = []
+
+    class _CountingAdapter(_StubAdapter):
+        def fetch(self, ticker, market, period, range):
+            fetch_calls.append(ticker)
+            return super().fetch(ticker, market, period, range)
+
+    with patch("financial_charts.__main__.get_source", return_value=_CountingAdapter()):
+        code = main(["AAPL", "--period", "ttm", "--out", str(tmp_path / "out.html")])
+
+    assert code == 1
+    assert "does not support period ttm" in capsys.readouterr().err
+    assert fetch_calls == []
+
+
+def test_unrecognized_top_level_command_is_treated_as_ticker(
+    tmp_path, monkeypatch, capsys
+):
+    # Documented residual limitation: a mistyped subcommand can't be told apart
+    # from an unusual ticker without a mandatory verb, which would break the
+    # documented `financial_charts <TICKER> ...` invocation. This test pins
+    # today's actual behavior rather than an aspirational one: "capabilites"
+    # (a typo of "capabilities") is attempted as a fetch, not rejected as an
+    # unknown command.
+    monkeypatch.chdir(tmp_path)
+    adapter = _StubAdapter(fetch_error=TickerNotFound("capabilites"))
+
+    with patch("financial_charts.__main__.get_source", return_value=adapter):
+        code = main(["capabilites"])
+
+    assert code == 1
+    assert "not found" in capsys.readouterr().err
+
+
+def test_help_lists_every_subcommand(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+
+    out = capsys.readouterr().out
+    assert "render" in out
+    assert "verify-source" in out
+    assert "capabilities" in out
+    assert "commission-source" in out
+
+
 def test_verify_source_subcommand_dispatches(monkeypatch, capsys):
     with patch("financial_charts.__main__.get_source", return_value=_StubAdapter()):
         code = main(["verify-source", "yfinance", "--ticker", "AAPL"])
@@ -296,6 +390,47 @@ def test_commission_source_forwards_range_flag(capsys):
         main(["commission-source", "yfinance", "--range", "10y"])
 
     assert mock_commission.call_args.kwargs["range_"] == "10y"
+
+
+def _degenerate_certificate() -> CommissionCertificate:
+    return CommissionCertificate(
+        source_name="yfinance",
+        generated_at=date(2026, 1, 1),
+        samples=(
+            SampleResult(
+                market=Market.US,
+                company_type="large_cap",
+                ticker="AAPL",
+                period=Period.ANNUAL,
+                ok=False,
+                available_metrics=frozenset(),
+                error="network error",
+            ),
+        ),
+        capability=Capability(
+            markets=set(),
+            periods={Period.ANNUAL},
+            max_history={},
+            metrics=set(),
+        ),
+    )
+
+
+def test_commission_source_refuses_to_write_a_degenerate_certificate(capsys):
+    with (
+        patch("financial_charts.__main__.get_source", return_value=_StubAdapter()),
+        patch(
+            "financial_charts.__main__.commission",
+            return_value=_degenerate_certificate(),
+        ),
+        patch("financial_charts.__main__.capability_module_path"),
+        patch("financial_charts.__main__.write_capability_module") as mock_write,
+    ):
+        code = main(["commission-source", "yfinance"])
+
+    assert code == 1
+    mock_write.assert_not_called()
+    assert "refusing to overwrite" in capsys.readouterr().err
 
 
 def test_commission_source_missing_credentials_returns_error(capsys):
