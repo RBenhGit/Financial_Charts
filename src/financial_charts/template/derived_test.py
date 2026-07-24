@@ -191,3 +191,33 @@ def test_resolve_skips_a_point_whose_compute_raises_value_error():
     series = resolve(fundamentals, raises_on_first_date)
 
     assert [p.date for p in series.points] == [date(2021, 1, 1)]
+
+
+def test_resolve_skips_a_point_whose_compute_raises_attribute_or_type_error():
+    # A `compute` that assumes every input is a Money (e.g. calls
+    # .as_base_units()) must degrade a bare-float point, not crash the whole
+    # dashboard render.
+    assumes_money = DerivedMetric(
+        metric_id="flaky",
+        title="Flaky",
+        inputs=("price",),
+        compute=lambda value: value.as_base_units(),
+    )
+    fundamentals = _fundamentals(
+        {
+            "price": MetricSeries(
+                metric_id="price",
+                points=[
+                    Point(date=date(2020, 1, 1), value=10.0),
+                    Point(
+                        date=date(2021, 1, 1),
+                        value=Money(value=10, currency=Currency.USD, scale=Unit.ONES),
+                    ),
+                ],
+            )
+        }
+    )
+
+    series = resolve(fundamentals, assumes_money)
+
+    assert [p.date for p in series.points] == [date(2021, 1, 1)]

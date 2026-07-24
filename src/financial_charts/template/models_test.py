@@ -1,6 +1,17 @@
+from datetime import date
+
 import pytest
 
-from financial_charts.template.models import Currency, Money, Unit
+from financial_charts.template.models import (
+    CompanyFundamentals,
+    Currency,
+    Market,
+    MetricSeries,
+    Money,
+    Period,
+    Point,
+    Unit,
+)
 
 
 def test_money_to_rescales_preserving_amount():
@@ -42,3 +53,85 @@ def test_money_is_immutable():
     m = Money(value=1, currency=Currency.USD, scale=Unit.ONES)
     with pytest.raises(Exception):
         m.value = 2
+
+
+def test_metric_series_with_empty_points_is_forced_unavailable():
+    series = MetricSeries(metric_id="revenue", points=[], available=True)
+
+    assert series.available is False
+
+
+def test_metric_series_with_points_stays_available():
+    series = MetricSeries(
+        metric_id="revenue",
+        points=[
+            Point(
+                date=date(2020, 1, 1),
+                value=Money(value=1, currency=Currency.USD, scale=Unit.ONES),
+            )
+        ],
+        available=True,
+    )
+
+    assert series.available is True
+
+
+def test_metric_series_rejects_mixed_currency_points():
+    with pytest.raises(ValueError, match="inconsistent Money currency/scale"):
+        MetricSeries(
+            metric_id="revenue",
+            points=[
+                Point(
+                    date=date(2020, 1, 1),
+                    value=Money(value=1, currency=Currency.USD, scale=Unit.ONES),
+                ),
+                Point(
+                    date=date(2021, 1, 1),
+                    value=Money(value=1, currency=Currency.ILS, scale=Unit.ONES),
+                ),
+            ],
+        )
+
+
+def test_metric_series_rejects_mixed_scale_points():
+    with pytest.raises(ValueError, match="inconsistent Money currency/scale"):
+        MetricSeries(
+            metric_id="revenue",
+            points=[
+                Point(
+                    date=date(2020, 1, 1),
+                    value=Money(value=1, currency=Currency.USD, scale=Unit.ONES),
+                ),
+                Point(
+                    date=date(2021, 1, 1),
+                    value=Money(value=1, currency=Currency.USD, scale=Unit.MILLIONS),
+                ),
+            ],
+        )
+
+
+def test_company_fundamentals_allows_a_series_in_a_different_currency_than_display():
+    # Real case: a TASE-listed multinational (e.g. Teva) can trade in ILS
+    # (agorot) while its financial statements are reported in USD. The
+    # top-level `currency` labels price/display; it must not force every
+    # series to match, or a legitimate dual-currency company fails to render.
+    series = MetricSeries(
+        metric_id="revenue",
+        points=[
+            Point(
+                date=date(2020, 1, 1),
+                value=Money(value=1, currency=Currency.USD, scale=Unit.ONES),
+            )
+        ],
+    )
+
+    fundamentals = CompanyFundamentals(
+        ticker="TEVA.TA",
+        market=Market.TASE,
+        currency=Currency.ILS,
+        period=Period.ANNUAL,
+        range="5y",
+        series={"revenue": series},
+    )
+
+    assert fundamentals.series["revenue"].points[0].value.currency == Currency.USD

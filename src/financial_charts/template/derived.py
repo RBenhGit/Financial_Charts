@@ -49,11 +49,12 @@ def resolve(fundamentals: CompanyFundamentals, derived: DerivedMetric) -> Metric
     for d in common_dates:
         try:
             value = derived.compute(*(values[d] for values in values_by_date))
-        except (ZeroDivisionError, ValueError):
+        except (ZeroDivisionError, ValueError, AttributeError, TypeError):
             # A single bad point (division by zero, a currency mismatch a
-            # `compute` fn didn't expect) degrades to a skipped point, never a
-            # crash — if every point fails this way the series ends up empty
-            # and callers see `available=False`, same as any other gap.
+            # `compute` fn didn't expect, an unexpected value shape) degrades to
+            # a skipped point, never a crash — if every point fails this way the
+            # series ends up empty and callers see `available=False`, same as
+            # any other gap.
             continue
         points.append(Point(date=d, value=value))
 
@@ -70,11 +71,7 @@ def ratio(numerator: Money, denominator: Money) -> float:
     in millions against one declared in ones, the same trap `Money` exists to
     prevent for addition.
     """
-    if numerator.currency != denominator.currency:
-        raise ValueError(
-            "cannot compute a ratio across currencies: "
-            f"{numerator.currency} vs {denominator.currency}"
-        )
+    numerator.require_same_currency(denominator)
     return numerator.as_base_units() / denominator.as_base_units()
 
 
