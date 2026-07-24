@@ -1,11 +1,16 @@
 from datetime import date
 
+import pytest
+
 from financial_charts.sources.base import Capability, SourceUnavailable, TickerNotFound
 from financial_charts.sources.commission import (
     SAMPLE_TICKERS,
     CommissionCertificate,
+    SampleResult,
+    _approx_years,
     candidate_metrics,
     commission,
+    is_degenerate,
     write_capability_module,
 )
 from financial_charts.template.models import (
@@ -214,6 +219,76 @@ def test_commission_derives_conservative_max_history():
 
     assert certificate.capability.max_history[Period.ANNUAL] == 3  # min(10, 3)
     assert certificate.capability.max_history[Period.QUARTERLY] == 2  # min(10, 2)
+
+
+def test_approx_years_raises_for_an_unhandled_period():
+    # TTM has no real adapter support yet; an unhandled Period member must
+    # raise rather than silently fall through to the annual approximation.
+    with pytest.raises(ValueError, match="ttm"):
+        _approx_years(Period.TTM, 8)
+
+
+def test_is_degenerate_true_when_samples_exist_but_no_market_qualified():
+    certificate = CommissionCertificate(
+        source_name="teststub",
+        generated_at=date(2026, 1, 1),
+        samples=(
+            SampleResult(
+                market=Market.US,
+                company_type="large_cap",
+                ticker="BIG",
+                period=Period.ANNUAL,
+                ok=False,
+                available_metrics=frozenset(),
+                error="network error",
+            ),
+        ),
+        capability=Capability(
+            markets=set(), periods={Period.ANNUAL}, max_history={}, metrics=set()
+        ),
+    )
+
+    assert is_degenerate(certificate)
+
+
+def test_is_degenerate_false_when_no_samples_were_ever_attempted():
+    # A market with no configured sample tickers is a deliberate skip, not a
+    # failure — must not be flagged the same as a wholesale outage.
+    certificate = CommissionCertificate(
+        source_name="teststub",
+        generated_at=date(2026, 1, 1),
+        samples=(),
+        capability=Capability(
+            markets=set(), periods={Period.ANNUAL}, max_history={}, metrics=set()
+        ),
+    )
+
+    assert not is_degenerate(certificate)
+
+
+def test_is_degenerate_false_for_a_healthy_certificate():
+    certificate = CommissionCertificate(
+        source_name="teststub",
+        generated_at=date(2026, 1, 1),
+        samples=(
+            SampleResult(
+                market=Market.US,
+                company_type="large_cap",
+                ticker="BIG",
+                period=Period.ANNUAL,
+                ok=True,
+                available_metrics=frozenset({"price"}),
+            ),
+        ),
+        capability=Capability(
+            markets={Market.US},
+            periods={Period.ANNUAL},
+            max_history={Period.ANNUAL: 4},
+            metrics={"price"},
+        ),
+    )
+
+    assert not is_degenerate(certificate)
 
 
 def test_write_capability_module_generates_valid_reloadable_python(tmp_path):

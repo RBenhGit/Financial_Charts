@@ -77,9 +77,24 @@ def candidate_metrics() -> list[str]:
 
 
 def _approx_years(period: Period, point_count: int) -> int:
+    if period == Period.ANNUAL:
+        return max(point_count, 0)
     if period == Period.QUARTERLY:
         return max(point_count // 4, 0)
-    return max(point_count, 0)
+    raise ValueError(
+        f"commission() cannot approximate history depth for period {period.value}"
+    )
+
+
+def is_degenerate(certificate: CommissionCertificate) -> bool:
+    """Whether `certificate` looks like a wholesale-failed probing run.
+
+    `samples` non-empty but `markets` empty means every sample that was
+    actually attempted failed outright (e.g. the whole live API was down for
+    the run) — as opposed to `samples` being empty because no tickers were
+    configured for any market, which is a deliberate skip, not a failure.
+    """
+    return bool(certificate.samples) and not certificate.capability.markets
 
 
 def commission(

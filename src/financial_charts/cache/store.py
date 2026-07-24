@@ -1,3 +1,4 @@
+import os
 from datetime import date
 from pathlib import Path
 
@@ -32,7 +33,7 @@ class TemplateCache:
         path = self._path(ticker, source, period, range, as_of)
         if not path.exists():
             return None
-        return CompanyFundamentals.model_validate_json(path.read_text())
+        return _load(path)
 
     def latest(
         self, ticker: str, source: str, period: Period, range: str
@@ -45,9 +46,13 @@ class TemplateCache:
         matches = (
             sorted(self._dir.glob(f"{prefix}*.json")) if self._dir.exists() else []
         )
-        if not matches:
-            return None
-        return CompanyFundamentals.model_validate_json(matches[-1].read_text())
+        # Newest-dated file first; a corrupt entry falls back to the next most
+        # recent readable one rather than treating the whole lookup as a miss.
+        for path in reversed(matches):
+            fundamentals = _load(path)
+            if fundamentals is not None:
+                return fundamentals
+        return None
 
     def put(
         self,
@@ -60,4 +65,16 @@ class TemplateCache:
     ) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         path = self._path(ticker, source, period, range, as_of)
-        path.write_text(fundamentals.model_dump_json())
+        # Write to a temp file in the same directory, then atomically replace —
+        # a crash or a concurrent reader never observes a partially-written file.
+        tmp_path = path.with_suffix(f"{path.suffix}.tmp-{os.getpid()}")
+        tmp_path.write_text(fundamentals.model_dump_json())
+        os.replace(tmp_path, path)
+
+
+def _load(path: Path) -> CompanyFundamentals | None:
+    """Read a cached entry, treating a corrupt file as a miss rather than a crash."""
+    try:
+        return CompanyFundamentals.model_validate_json(path.read_text())
+    except ValueError:
+        return None
