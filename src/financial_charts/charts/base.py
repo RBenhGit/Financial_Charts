@@ -61,6 +61,10 @@ class _Unavailable:
 _UNAVAILABLE = _Unavailable()
 
 
+def currency_symbol(fundamentals: CompanyFundamentals) -> str:
+    return "₪" if fundamentals.currency.value == "ILS" else "$"
+
+
 def render_money_bar(
     ax: Axes, fundamentals: CompanyFundamentals, metric_id: str
 ) -> None:
@@ -70,5 +74,21 @@ def render_money_bar(
     values = [p.value.value for p in points]
 
     ax.bar(dates, values, width=60, color="steelblue")
-    currency_symbol = "₪" if fundamentals.currency.value == "ILS" else "$"
-    ax.set_ylabel(f"{metric_id.replace('_', ' ').title()} ({currency_symbol})")
+    ax.set_ylabel(
+        f"{metric_id.replace('_', ' ').title()} ({currency_symbol(fundamentals)})"
+    )
+
+
+def render_percentage_line(
+    ax: Axes,
+    dates: list,
+    values: list[float],
+    label: str,
+    color: str | None = None,
+) -> None:
+    """Shared line-plot rendering for ratio-valued metrics (margins, FCF margin).
+
+    `values` are the raw ratios (e.g. 0.4 for 40%); this scales to percent.
+    """
+    kwargs = {"color": color} if color else {}
+    ax.plot(dates, [v * 100 for v in values], marker="o", label=label, **kwargs)

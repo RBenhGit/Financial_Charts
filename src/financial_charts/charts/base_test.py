@@ -1,16 +1,23 @@
+from datetime import date
+
 import matplotlib
 
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 
-from financial_charts.charts.base import render_or_no_data
+from financial_charts.charts.base import (
+    currency_symbol,
+    render_or_no_data,
+    render_percentage_line,
+)
 from financial_charts.charts.builtins._test_helpers import (
     fundamentals_with,
     money_series,
     unavailable_series,
 )
 from financial_charts.charts.builtins.revenue import RevenueChart
+from financial_charts.template.models import Currency
 
 
 def test_renders_chart_when_metric_available():
@@ -47,4 +54,27 @@ def test_falls_back_to_no_data_when_metric_missing_entirely():
 
     texts = [t.get_text() for t in ax.texts]
     assert "No Data" in texts
+    plt.close(fig)
+
+
+def test_currency_symbol_is_shekel_for_ils():
+    fundamentals = fundamentals_with({}, currency=Currency.ILS)
+    assert currency_symbol(fundamentals) == "₪"
+
+
+def test_currency_symbol_is_dollar_for_usd():
+    fundamentals = fundamentals_with({}, currency=Currency.USD)
+    assert currency_symbol(fundamentals) == "$"
+
+
+def test_render_percentage_line_scales_ratios_to_percent():
+    fig, ax = plt.subplots()
+
+    render_percentage_line(
+        ax, [date(2020, 1, 1), date(2021, 1, 1)], [0.4, 0.45], "Gross Margin"
+    )
+
+    line = ax.get_lines()[0]
+    assert line.get_label() == "Gross Margin"
+    assert list(line.get_ydata()) == [40.0, 45.0]
     plt.close(fig)

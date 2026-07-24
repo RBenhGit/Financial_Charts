@@ -1,6 +1,7 @@
 import pandas as pd
 from matplotlib.axes import Axes
 
+from financial_charts.charts.base import currency_symbol
 from financial_charts.template.models import CompanyFundamentals
 
 _SMA_WINDOWS = (50, 150, 200)
@@ -22,6 +23,5 @@ class PriceChart:
                 sma = closes.rolling(window=window).mean()
                 ax.plot(dates, sma.to_numpy(), label=f"SMA {window}", linewidth=1)
 
-        currency_symbol = "₪" if fundamentals.currency.value == "ILS" else "$"
-        ax.set_ylabel(f"Price ({currency_symbol})")
+        ax.set_ylabel(f"Price ({currency_symbol(fundamentals)})")
         ax.legend(fontsize=7, loc="upper left")

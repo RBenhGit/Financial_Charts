@@ -1,5 +1,6 @@
 from matplotlib.axes import Axes
 
+from financial_charts.charts.base import render_percentage_line
 from financial_charts.template.models import CompanyFundamentals
 
 
@@ -14,9 +15,9 @@ class MarginsChart:
             ("net_margin", "Net Margin"),
         ]:
             points = fundamentals.series[metric_id].points
-            dates = [p.date for p in points]
-            percentages = [p.value * 100 for p in points]
-            ax.plot(dates, percentages, marker="o", label=label)
+            render_percentage_line(
+                ax, [p.date for p in points], [p.value for p in points], label
+            )
 
         ax.set_ylabel("Margin (%)")
         ax.legend(fontsize=7, loc="upper left")
