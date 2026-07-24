@@ -50,7 +50,7 @@
     <fieldset class="field">
       <legend>Charts (optional — overrides Chart set)</legend>
       {% for c in charts %}
-      <label><input type="checkbox" name="charts" value="{{ c.name }}"> {{ c.title }}</label>
+      <label title="Supported by: {{ chart_support[c.name] | join(', ') }}"><input type="checkbox" name="charts" value="{{ c.name }}"> {{ c.title }}</label>
       {% endfor %}
     </fieldset>
     <button type="submit">Render</button>
