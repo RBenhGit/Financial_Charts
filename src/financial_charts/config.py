@@ -10,4 +10,4 @@ DEFAULT_CHART_SET = "fundamentals"
 
 
 def data_source_name() -> str:
-    return os.environ.get("DATA_SOURCE", "yfinance")
+    return os.environ.get("DATA_SOURCE", "yfinance").strip()
