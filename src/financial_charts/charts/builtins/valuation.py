@@ -15,7 +15,16 @@ class ValuationChart:
     def render(self, ax: Axes, fundamentals: CompanyFundamentals) -> None:
         book_value = resolve(fundamentals, BOOK_VALUE_PER_SHARE)
         price_points = fundamentals.series["price"].points
-        if not book_value.available or not price_points:
+        equity_points = fundamentals.series["total_equity"].points
+        if not book_value.available or not price_points or not equity_points:
+            draw_no_data(ax)
+            return
+        if price_points[0].value.currency != equity_points[0].value.currency:
+            # BOOK_VALUE_PER_SHARE's compute discards its Money currency tag
+            # (it returns a bare float), so the mismatch guard Money normally
+            # provides (see require_same_currency) has to be checked here
+            # instead — a dual-listed company can report financials in a
+            # different currency than the one its shares trade in.
             draw_no_data(ax)
             return
 

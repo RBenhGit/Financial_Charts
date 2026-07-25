@@ -11,11 +11,13 @@ from financial_charts.charts.builtins.valuation import ValuationChart
 from financial_charts.template.models import Currency, MetricSeries, Money, Point, Unit
 
 
-def _price_series(points: list[tuple[date, float]]) -> MetricSeries:
+def _price_series(
+    points: list[tuple[date, float]], currency: Currency = Currency.USD
+) -> MetricSeries:
     return MetricSeries(
         metric_id="price",
         points=[
-            Point(date=d, value=Money(value=v, currency=Currency.USD, scale=Unit.ONES))
+            Point(date=d, value=Money(value=v, currency=currency, scale=Unit.ONES))
             for d, v in points
         ],
         available=True,
@@ -77,6 +79,28 @@ def test_pairs_each_statement_date_with_its_nearest_price_quote():
     # quote to 2020-03-31 is 2020-04-02's $100.
     line = ax.get_lines()[0]
     assert list(line.get_ydata()) == [100.0 / 2_000_000]
+    plt.close(fig)
+
+
+def test_falls_back_to_no_data_on_currency_mismatch():
+    # A dual-listed company can report financials in a different currency
+    # than the one its shares trade in. BOOK_VALUE_PER_SHARE discards its
+    # Money currency tag (it returns a bare float), so the chart must check
+    # this itself rather than silently computing a nonsensical P/B.
+    fundamentals = fundamentals_with(
+        {
+            "price": _price_series([(date(2020, 3, 31), 100.0)], currency=Currency.ILS),
+            "total_equity": _equity_series([(date(2020, 3, 31), 200)]),
+            "shares_outstanding": _share_count_series([(date(2020, 3, 31), 100.0)]),
+        }
+    )
+    fig, ax = plt.subplots()
+
+    ValuationChart().render(ax, fundamentals)
+
+    assert ax.get_lines() == []
+    texts = [t.get_text() for t in ax.texts]
+    assert "No Data" in texts
     plt.close(fig)
 
 

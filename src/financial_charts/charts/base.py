@@ -112,12 +112,18 @@ def render_money_line(
 ) -> None:
     """Shared multi-line rendering for related Money-valued metrics (e.g. an
     expense breakdown or a cash-vs-debt comparison).
+
+    Plots via `as_base_units()`, not the raw `.value` — the paired metrics
+    are only guaranteed consistent currency *within* each one's own series
+    (see `MetricSeries._consistent_money_tagging`), not against each other,
+    so two metrics tagged with different scales would otherwise silently
+    mis-plot relative to one another.
     """
     for metric_id, label in series:
         points = fundamentals.series[metric_id].points
         ax.plot(
             [p.date for p in points],
-            [p.value.value for p in points],
+            [p.value.as_base_units() for p in points],
             marker="o",
             label=label,
         )

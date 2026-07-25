@@ -14,9 +14,13 @@ class DividendYieldChart:
         dividends = fundamentals.series["dividends_paid"].points[-1].value
         shares = fundamentals.series["shares_outstanding"].points[-1].value
         try:
+            # A dual-listed company can report financials in a different
+            # currency than the one its shares trade in (see Money's
+            # require_same_currency) — guard before combining the two here.
+            price.require_same_currency(dividends)
             dividend_per_share = dividends.as_base_units() / shares
             dividend_yield = dividend_per_share / price.as_base_units() * 100
-        except ZeroDivisionError:
+        except (ZeroDivisionError, ValueError):
             draw_no_data(ax)
             return
         render_kpi_value(ax, f"{dividend_yield:.2f}%")
