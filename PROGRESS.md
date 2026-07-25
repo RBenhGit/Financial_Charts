@@ -25,19 +25,55 @@ interactive charts — add a JSON endpoint in this same `web/` module and swap t
 front-end to a JS chart library; the template already serializes to JSON, so no
 changes to sources/cache/template are needed.
 
-80 tests passing, `ruff check` clean, `.claude` hooks wired to the uv toolchain.
+240 tests passing, `ruff check` clean, `.claude` hooks wired to the uv toolchain.
+
+## Task 16 — chart inventory (SPEC.md)
+
+Done. The full inventory beyond the original six (Price, Revenue, Net Income,
+FCF, EPS, Margins) is implemented, each its own vertical slice under
+`charts/builtins/` following the `revenue.py`/`revenue_test.py` pattern:
+
+- **EBITDA, Expenses (R&D/SG&A), Dividends Paid, Shares Outstanding** — reuse
+  fields already present in the existing income-statement/cash-flow fetch
+  calls in both adapters; no new endpoints needed.
+- **Cash & Debt, Assets/Equity/Liabilities, Debt & Financial Leverage,
+  Ratios (Current Ratio)** — added `balance_sheet` fetching to both adapters
+  (yfinance's `balance_sheet`/`quarterly_balance_sheet` properties, Twelve
+  Data's `balance_sheet` endpoint), exposing `total_assets`,
+  `total_liabilities`, `total_equity`, `cash_and_equivalents`, `total_debt`,
+  `total_current_assets`, `total_current_liabilities`, `ebit` as base
+  metrics. Two new `DerivedMetric`s (`current_ratio`, `debt_to_equity`) in
+  `template/derived.py`.
+- **Return on Capital (ROIC/ROCE)** — ROCE is the standard EBIT / (Assets -
+  Current Liabilities); ROIC is a simplification (Net Income / (Debt +
+  Equity - Cash), documented in `derived.py`) that avoids fetching a
+  separate effective tax rate for one chart.
+- **Valuation (P/B)** — book value/share is a normal same-cadence derived
+  metric, but pairing it with daily price needed nearest-date matching
+  (statement dates rarely land on a trading day) — done locally in
+  `valuation.py` rather than complicating `resolve()`'s exact-date join used
+  by every other derived metric.
+- **KPI cards** (Market Cap, P/E, Dividend Yield, ROE) — single-value "stat
+  tile" cards; each is a normal `Chart` that draws a big number via two new
+  shared helpers (`render_kpi_value`, `format_compact_number`) instead of a
+  line/bar, so no dashboard/layout changes were needed. All four reuse
+  metrics already fetched for other charts.
+
+Building the KPI cards surfaced a real bug (now fixed, with a regression
+test): yfinance's price series never filtered `NaN` closes — yfinance
+returns one for the current, still-open trading day — so "latest price"
+was silently NaN. Every other statement-series helper already filtered
+`NaN`; `_price_series` didn't.
+
+Capability declarations for both sources were hand-verified against live
+bank/large-cap sample data (not `commission-source` — that tool's
+metric-availability probe is scoped to `available_charts()`'s
+`required_metrics`, so running it before a metric has a consuming chart
+drops it from the regenerated `capability.py`; it's also stricter than the
+existing declarations tolerate, e.g. it would drop `gross_margin` for
+yfinance since bank samples lack a clean gross-profit line — a pre-existing
+imprecision, not something to silently fix as a side effect of Task 16).
 
 ## Remaining work
 
-**Task 16** (SPEC.md): expand the chart inventory beyond the initial six
-(Price, Revenue, Net Income, FCF, EPS, Margins) — EBITDA, Cash & Debt,
-Dividends, Return of Capital (ROIC/ROCE), Shares Outstanding, Ratios,
-Valuation (P/B), Expenses, Assets/Equity/Liabilities, Debt & Financial
-Leverage, plus KPI cards. Each is its own vertical slice under
-`charts/builtins/`, following the pattern in `revenue.py`/`revenue_test.py`.
-Each new metric needs adding to both adapters' `capability.py` + `adapter.py`
-(check what yfinance/Twelve Data actually expose first) and to
-`sources/validation.py`'s test coverage stays generic so no changes needed
-there.
-
-No other known gaps. Nothing half-done — safe to stop or resume at any point.
+No known gaps. Nothing half-done — safe to stop or resume at any point.
