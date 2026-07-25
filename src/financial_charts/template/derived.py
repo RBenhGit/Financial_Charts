@@ -95,3 +95,36 @@ DEBT_TO_EQUITY = DerivedMetric(
     inputs=("total_debt", "total_equity"),
     compute=ratio,
 )
+
+
+def _roce(ebit: Money, total_assets: Money, total_current_liabilities: Money) -> float:
+    """Return on Capital Employed: EBIT / (Total Assets - Current Liabilities)."""
+    capital_employed = total_assets - total_current_liabilities
+    return ratio(ebit, capital_employed)
+
+
+def _roic(
+    net_income: Money, total_debt: Money, total_equity: Money, cash: Money
+) -> float:
+    """Return on Invested Capital, approximated with Net Income (an after-tax
+    figure) over Invested Capital (Debt + Equity - Cash) — a simplification of
+    the textbook NOPAT/Invested Capital formula that avoids needing a
+    separately-fetched effective tax rate.
+    """
+    invested_capital = (total_debt + total_equity) - cash
+    return ratio(net_income, invested_capital)
+
+
+ROCE = DerivedMetric(
+    metric_id="roce",
+    title="ROCE",
+    inputs=("ebit", "total_assets", "total_current_liabilities"),
+    compute=_roce,
+)
+
+ROIC = DerivedMetric(
+    metric_id="roic",
+    title="ROIC",
+    inputs=("net_income", "total_debt", "total_equity", "cash_and_equivalents"),
+    compute=_roic,
+)

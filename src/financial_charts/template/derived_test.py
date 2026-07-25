@@ -6,6 +6,8 @@ from financial_charts.template.derived import (
     CURRENT_RATIO,
     DEBT_TO_EQUITY,
     FCF_MARGIN,
+    ROCE,
+    ROIC,
     DerivedMetric,
     ratio,
     resolve,
@@ -228,6 +230,41 @@ def test_debt_to_equity_divides_total_debt_by_total_equity():
     series = resolve(fundamentals, DEBT_TO_EQUITY)
 
     assert series.points[0].value == pytest.approx(0.25)
+
+
+def test_roce_divides_ebit_by_capital_employed():
+    fundamentals = _fundamentals(
+        {
+            "ebit": _money_series("ebit", [(date(2020, 1, 1), 20)]),
+            "total_assets": _money_series("total_assets", [(date(2020, 1, 1), 300)]),
+            "total_current_liabilities": _money_series(
+                "total_current_liabilities", [(date(2020, 1, 1), 100)]
+            ),
+        }
+    )
+
+    series = resolve(fundamentals, ROCE)
+
+    # 20 / (300 - 100) = 0.1
+    assert series.points[0].value == pytest.approx(0.1)
+
+
+def test_roic_divides_net_income_by_invested_capital():
+    fundamentals = _fundamentals(
+        {
+            "net_income": _money_series("net_income", [(date(2020, 1, 1), 15)]),
+            "total_debt": _money_series("total_debt", [(date(2020, 1, 1), 50)]),
+            "total_equity": _money_series("total_equity", [(date(2020, 1, 1), 200)]),
+            "cash_and_equivalents": _money_series(
+                "cash_and_equivalents", [(date(2020, 1, 1), 50)]
+            ),
+        }
+    )
+
+    series = resolve(fundamentals, ROIC)
+
+    # 15 / (50 + 200 - 50) = 0.075
+    assert series.points[0].value == pytest.approx(0.075)
 
 
 def test_resolve_skips_a_point_whose_compute_raises_attribute_or_type_error():

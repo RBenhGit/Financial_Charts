@@ -14,6 +14,7 @@ from financial_charts.charts.builtins.margins import MarginsChart
 from financial_charts.charts.builtins.net_income import NetIncomeChart
 from financial_charts.charts.builtins.price import PriceChart
 from financial_charts.charts.builtins.ratios import RatiosChart
+from financial_charts.charts.builtins.return_on_capital import ReturnOnCapitalChart
 from financial_charts.charts.builtins.revenue import RevenueChart
 from financial_charts.charts.builtins.shares_outstanding import (
     SharesOutstandingChart,
@@ -35,6 +36,7 @@ _CHARTS: list[Chart] = [
     AssetsEquityLiabilitiesChart(),
     DebtLeverageChart(),
     RatiosChart(),
+    ReturnOnCapitalChart(),
 ]
 
 
