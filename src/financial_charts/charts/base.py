@@ -79,6 +79,20 @@ def render_money_bar(
     )
 
 
+def render_ratio_line(
+    ax: Axes,
+    dates: list,
+    values: list[float],
+    label: str,
+    color: str | None = None,
+) -> None:
+    """Shared line-plot rendering for dimensionless ratio metrics (e.g. current ratio,
+    debt/equity) — plotted at face value, unlike `render_percentage_line`.
+    """
+    kwargs = {"color": color} if color else {}
+    ax.plot(dates, values, marker="o", label=label, **kwargs)
+
+
 def render_percentage_line(
     ax: Axes,
     dates: list,
@@ -90,5 +104,33 @@ def render_percentage_line(
 
     `values` are the raw ratios (e.g. 0.4 for 40%); this scales to percent.
     """
-    kwargs = {"color": color} if color else {}
-    ax.plot(dates, [v * 100 for v in values], marker="o", label=label, **kwargs)
+    render_ratio_line(ax, dates, [v * 100 for v in values], label, color)
+
+
+def render_money_line(
+    ax: Axes, fundamentals: CompanyFundamentals, series: list[tuple[str, str]]
+) -> None:
+    """Shared multi-line rendering for related Money-valued metrics (e.g. an
+    expense breakdown or a cash-vs-debt comparison).
+    """
+    for metric_id, label in series:
+        points = fundamentals.series[metric_id].points
+        ax.plot(
+            [p.date for p in points],
+            [p.value.value for p in points],
+            marker="o",
+            label=label,
+        )
+    ax.set_ylabel(f"({currency_symbol(fundamentals)})")
+    ax.legend(fontsize=7, loc="upper left")
+
+
+def render_float_bar(
+    ax: Axes, fundamentals: CompanyFundamentals, metric_id: str, ylabel: str
+) -> None:
+    """Shared bar-chart rendering for plain-float (non-Money) metrics, e.g. share counts."""
+    points = fundamentals.series[metric_id].points
+    ax.bar(
+        [p.date for p in points], [p.value for p in points], width=60, color="steelblue"
+    )
+    ax.set_ylabel(ylabel)

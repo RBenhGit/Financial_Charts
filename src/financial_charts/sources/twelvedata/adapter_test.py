@@ -57,6 +57,18 @@ def test_us_ticker_maps_price_and_fundamentals_in_usd():
     assert fundamentals.series["eps"].available
     assert fundamentals.series["gross_margin"].available
 
+    assert fundamentals.series["ebitda"].available
+    assert fundamentals.series["research_and_development"].available
+    assert fundamentals.series["selling_general_administrative"].available
+    assert fundamentals.series["shares_outstanding"].available
+    assert fundamentals.series["shares_outstanding"].points[0].value > 0
+
+    dividends = fundamentals.series["dividends_paid"]
+    assert dividends.available
+    # Twelve Data reports dividend cash outflows as negative; the adapter
+    # normalizes to a positive "amount paid out" for the chart.
+    assert all(p.value.value > 0 for p in dividends.points)
+
 
 def test_tase_ticker_converts_agorot_price_and_flags_missing_gross_margin():
     fundamentals = _fetch_with_fixture(
@@ -75,6 +87,12 @@ def test_tase_ticker_converts_agorot_price_and_flags_missing_gross_margin():
 
     assert not fundamentals.series["gross_margin"].available
     assert any("gross_margin" in limit for limit in fundamentals.source_limits)
+
+    # This fixture's income statement has ebitda/ebit/R&D as null — must
+    # degrade to unavailable, not crash.
+    assert not fundamentals.series["ebitda"].available
+    assert not fundamentals.series["research_and_development"].available
+    assert fundamentals.series["selling_general_administrative"].available
 
 
 def test_unknown_ticker_raises_ticker_not_found():

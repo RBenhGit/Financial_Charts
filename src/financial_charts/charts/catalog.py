@@ -1,11 +1,17 @@
 from financial_charts.charts.base import Chart
+from financial_charts.charts.builtins.dividends import DividendsChart
+from financial_charts.charts.builtins.ebitda import EBITDAChart
 from financial_charts.charts.builtins.eps import EPSChart
+from financial_charts.charts.builtins.expenses import ExpensesChart
 from financial_charts.charts.builtins.fcf_margin import FCFMarginChart
 from financial_charts.charts.builtins.free_cash_flow import FreeCashFlowChart
 from financial_charts.charts.builtins.margins import MarginsChart
 from financial_charts.charts.builtins.net_income import NetIncomeChart
 from financial_charts.charts.builtins.price import PriceChart
 from financial_charts.charts.builtins.revenue import RevenueChart
+from financial_charts.charts.builtins.shares_outstanding import (
+    SharesOutstandingChart,
+)
 
 _CHARTS: list[Chart] = [
     PriceChart(),
@@ -15,6 +21,10 @@ _CHARTS: list[Chart] = [
     EPSChart(),
     MarginsChart(),
     FCFMarginChart(),
+    EBITDAChart(),
+    ExpensesChart(),
+    DividendsChart(),
+    SharesOutstandingChart(),
 ]
 
 

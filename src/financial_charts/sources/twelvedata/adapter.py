@@ -96,6 +96,37 @@ class TwelveDataAdapter:
         series["net_margin"] = _margin_series(
             income_statement, "net_income", "sales", "net_margin", source_limits
         )
+        series["ebitda"] = _income_series(
+            income_statement, "ebitda", financial_currency, "ebitda", source_limits
+        )
+        series["research_and_development"] = _income_series(
+            income_statement,
+            ("operating_expense", "research_and_development"),
+            financial_currency,
+            "research_and_development",
+            source_limits,
+        )
+        series["selling_general_administrative"] = _income_series(
+            income_statement,
+            ("operating_expense", "selling_general_and_administrative"),
+            financial_currency,
+            "selling_general_administrative",
+            source_limits,
+        )
+        series["shares_outstanding"] = _income_float_series(
+            income_statement,
+            "diluted_shares_outstanding",
+            "shares_outstanding",
+            source_limits,
+        )
+        series["dividends_paid"] = _income_series(
+            cashflow_statement,
+            ("financing_activities", "common_dividends"),
+            financial_currency,
+            "dividends_paid",
+            source_limits,
+            absolute=True,
+        )
 
         return CompanyFundamentals(
             ticker=ticker,
@@ -162,24 +193,68 @@ def _price_series(price_json: dict, source_limits: list[str]) -> MetricSeries:
     return MetricSeries(metric_id="price", points=points, available=True)
 
 
+def _field_value(row: dict, field: str | tuple[str, ...]):
+    """Resolve a top-level or dotted-path field (e.g. Twelve Data's nested
+    `operating_expense.research_and_development`) from one statement row.
+    """
+    if isinstance(field, str):
+        return row.get(field)
+    value = row
+    for key in field:
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return value
+
+
 def _income_series(
     income_statement: list[dict],
-    field: str,
+    field: str | tuple[str, ...],
     currency: Currency | None,
     metric_id: str,
     source_limits: list[str],
+    absolute: bool = False,
 ) -> MetricSeries:
     if currency is None:
         return _unavailable(metric_id, source_limits)
 
-    points = [
-        Point(
-            date=row["fiscal_date"],
-            value=Money(value=float(row[field]), currency=currency, scale=Unit.ONES),
+    points = []
+    for row in reversed(income_statement):
+        if row.get("fiscal_date") is None:
+            continue
+        raw = _field_value(row, field)
+        if raw is None:
+            continue
+        points.append(
+            Point(
+                date=row["fiscal_date"],
+                value=Money(
+                    value=abs(float(raw)) if absolute else float(raw),
+                    currency=currency,
+                    scale=Unit.ONES,
+                ),
+            )
         )
-        for row in reversed(income_statement)
-        if row.get("fiscal_date") is not None and row.get(field) is not None
-    ]
+    if not points:
+        return _unavailable(metric_id, source_limits)
+    return MetricSeries(metric_id=metric_id, points=points, available=True)
+
+
+def _income_float_series(
+    income_statement: list[dict],
+    field: str | tuple[str, ...],
+    metric_id: str,
+    source_limits: list[str],
+) -> MetricSeries:
+    """Like `_income_series` but for a plain (non-Money) numeric field, e.g. a share count."""
+    points = []
+    for row in reversed(income_statement):
+        if row.get("fiscal_date") is None:
+            continue
+        raw = _field_value(row, field)
+        if raw is None:
+            continue
+        points.append(Point(date=row["fiscal_date"], value=float(raw)))
     if not points:
         return _unavailable(metric_id, source_limits)
     return MetricSeries(metric_id=metric_id, points=points, available=True)

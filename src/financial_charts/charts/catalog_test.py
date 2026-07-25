@@ -13,6 +13,10 @@ def test_available_charts_includes_all_builtins_and_fcf_margin():
         "eps",
         "margins",
         "fcf_margin",
+        "ebitda",
+        "expenses",
+        "dividends",
+        "shares_outstanding",
     }
 
 

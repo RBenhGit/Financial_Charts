@@ -77,6 +77,17 @@ def test_us_ticker_maps_price_and_fundamentals_in_usd():
     assert fundamentals.series["eps"].available
     assert fundamentals.series["net_margin"].available
 
+    assert fundamentals.series["ebitda"].available
+    assert fundamentals.series["selling_general_administrative"].available
+    assert fundamentals.series["shares_outstanding"].available
+    assert fundamentals.series["shares_outstanding"].points[0].value > 0
+
+    dividends = fundamentals.series["dividends_paid"]
+    assert dividends.available
+    # yfinance reports dividend cash outflows as negative; the adapter
+    # normalizes to a positive "amount paid out" for the chart.
+    assert all(p.value.value > 0 for p in dividends.points)
+
 
 def test_tase_ticker_converts_agorot_price_and_reports_ils_financials():
     fundamentals = _fetch_with_fixture(
@@ -97,6 +108,11 @@ def test_tase_ticker_converts_agorot_price_and_reports_ils_financials():
     revenue = fundamentals.series["revenue"]
     assert revenue.available
     assert revenue.points[0].value.currency == Currency.ILS
+
+    # This fixture's financials have no "Research And Development" row (a bank
+    # doesn't break it out) — must degrade to unavailable, not crash.
+    assert not fundamentals.series["research_and_development"].available
+    assert fundamentals.series["selling_general_administrative"].available
 
 
 def test_unknown_ticker_raises_ticker_not_found():

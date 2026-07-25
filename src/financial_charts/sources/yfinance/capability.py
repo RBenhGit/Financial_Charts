@@ -17,5 +17,10 @@ CAPABILITY = Capability(
         "eps",
         "gross_margin",
         "net_margin",
+        "ebitda",
+        "research_and_development",
+        "selling_general_administrative",
+        "dividends_paid",
+        "shares_outstanding",
     },
 )

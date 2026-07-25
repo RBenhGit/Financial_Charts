@@ -11,7 +11,7 @@ from financial_charts.template.models import Market, Period
 class _StubChart:
     name = "stub"
     title = "Stub"
-    required_metrics = ["ebitda"]
+    required_metrics = ["goodwill_impairment"]
 
     def render(self, ax, fundamentals):
         pass
@@ -63,4 +63,4 @@ def test_capability_limits_flags_charts_with_missing_metrics():
 
     assert len(limits) == 1
     assert "stub" in limits[0]
-    assert "ebitda" in limits[0]
+    assert "goodwill_impairment" in limits[0]

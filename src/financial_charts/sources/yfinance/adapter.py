@@ -114,6 +114,40 @@ class YFinanceAdapter:
         series["net_margin"] = _margin_series(
             financials, "Net Income", "Total Revenue", "net_margin", source_limits
         )
+        series["ebitda"] = _statement_series(
+            financials, "EBITDA", financial_currency, Unit.ONES, "ebitda", source_limits
+        )
+        series["research_and_development"] = _statement_series(
+            financials,
+            "Research And Development",
+            financial_currency,
+            Unit.ONES,
+            "research_and_development",
+            source_limits,
+        )
+        series["selling_general_administrative"] = _statement_series(
+            financials,
+            "Selling General And Administration",
+            financial_currency,
+            Unit.ONES,
+            "selling_general_administrative",
+            source_limits,
+        )
+        series["dividends_paid"] = _statement_series(
+            cashflow,
+            "Cash Dividends Paid",
+            financial_currency,
+            Unit.ONES,
+            "dividends_paid",
+            source_limits,
+            absolute=True,
+        )
+        series["shares_outstanding"] = _statement_float_series(
+            financials,
+            "Diluted Average Shares",
+            "shares_outstanding",
+            source_limits,
+        )
 
         return CompanyFundamentals(
             ticker=ticker,
@@ -167,6 +201,7 @@ def _statement_series(
     scale: Unit,
     metric_id: str,
     source_limits: list[str],
+    absolute: bool = False,
 ) -> MetricSeries:
     if statement.empty or row_name not in statement.index or currency is None:
         return _unavailable(metric_id, source_limits)
@@ -175,7 +210,11 @@ def _statement_series(
     points = [
         Point(
             date=col.date(),
-            value=Money(value=float(val), currency=currency, scale=scale),
+            value=Money(
+                value=abs(float(val)) if absolute else float(val),
+                currency=currency,
+                scale=scale,
+            ),
         )
         for col, val in row.items()
         if pd.notna(val)
@@ -183,6 +222,28 @@ def _statement_series(
     # yfinance's statement columns come back newest-first; sort ascending to
     # match price and Twelve Data so every series in one CompanyFundamentals
     # runs the same chronological direction.
+    points.sort(key=lambda p: p.date)
+    if not points:
+        return _unavailable(metric_id, source_limits)
+    return MetricSeries(metric_id=metric_id, points=points, available=True)
+
+
+def _statement_float_series(
+    statement: pd.DataFrame,
+    row_name: str,
+    metric_id: str,
+    source_limits: list[str],
+) -> MetricSeries:
+    """Like `_statement_series` but for a plain (non-Money) numeric row, e.g. a share count."""
+    if statement.empty or row_name not in statement.index:
+        return _unavailable(metric_id, source_limits)
+
+    row = statement.loc[row_name]
+    points = [
+        Point(date=col.date(), value=float(val))
+        for col, val in row.items()
+        if pd.notna(val)
+    ]
     points.sort(key=lambda p: p.date)
     if not points:
         return _unavailable(metric_id, source_limits)
