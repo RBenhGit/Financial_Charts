@@ -1,6 +1,7 @@
 import pytest
 
 from financial_charts.charts.registry import (
+    CUSTOM_CHART_SET_PREFIX,
     get_chart_set,
     register_chart_set,
     registered_chart_sets,
@@ -37,6 +38,7 @@ def test_registered_chart_sets_includes_curated_names():
 
 
 def test_registered_chart_sets_excludes_ad_hoc_custom_sets():
-    register_chart_set("custom:eps,price", get_chart_set("fundamentals")[:2])
+    name = CUSTOM_CHART_SET_PREFIX + "eps,price"
+    register_chart_set(name, get_chart_set("fundamentals")[:2])
 
-    assert "custom:eps,price" not in registered_chart_sets()
+    assert name not in registered_chart_sets()

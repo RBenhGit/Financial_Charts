@@ -7,7 +7,11 @@ from pathlib import Path
 from financial_charts import chart_support, config
 from financial_charts.cache.store import TemplateCache
 from financial_charts.charts.catalog import get_chart
-from financial_charts.charts.registry import get_chart_set, register_chart_set
+from financial_charts.charts.registry import (
+    CUSTOM_CHART_SET_PREFIX,
+    get_chart_set,
+    register_chart_set,
+)
 from financial_charts.dashboard.render import write_output
 from financial_charts.sources.base import (
     Capability,
@@ -109,7 +113,7 @@ def _resolve_chart_set_name(args: argparse.Namespace) -> str | None:
     # selection reuse one entry — bounded by the catalog's size (at most
     # 2^N - 1 distinct subsets for N registered charts), which only grows
     # through reviewed commits, not user input.
-    chart_set_name = "custom:" + ",".join(sorted(chart_ids))
+    chart_set_name = CUSTOM_CHART_SET_PREFIX + ",".join(sorted(chart_ids))
     register_chart_set(chart_set_name, charts)
     return chart_set_name
 

@@ -3,6 +3,7 @@ from flask import Flask, render_template, request
 from financial_charts import chart_support, config
 from financial_charts.charts.catalog import available_charts, get_chart
 from financial_charts.charts.registry import (
+    CUSTOM_CHART_SET_PREFIX,
     get_chart_set,
     register_chart_set,
     registered_chart_sets,
@@ -109,7 +110,7 @@ def create_app() -> Flask:
             # a read of a different selection — see the memory note on this
             # pattern if that assumption ever changes (e.g. threaded=True or
             # a multi-worker WSGI deployment).
-            chart_set = "custom:" + ",".join(sorted(chart_ids))
+            chart_set = CUSTOM_CHART_SET_PREFIX + ",".join(sorted(chart_ids))
             register_chart_set(chart_set, charts)
         else:
             chart_set = request.args.get("chart_set") or config.DEFAULT_CHART_SET
