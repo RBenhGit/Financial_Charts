@@ -4,6 +4,7 @@ from financial_charts.charts.builtins.assets_equity_liabilities import (
 )
 from financial_charts.charts.builtins.cash_and_debt import CashAndDebtChart
 from financial_charts.charts.builtins.debt_leverage import DebtLeverageChart
+from financial_charts.charts.builtins.dividend_yield import DividendYieldChart
 from financial_charts.charts.builtins.dividends import DividendsChart
 from financial_charts.charts.builtins.ebitda import EBITDAChart
 from financial_charts.charts.builtins.eps import EPSChart
@@ -11,10 +12,13 @@ from financial_charts.charts.builtins.expenses import ExpensesChart
 from financial_charts.charts.builtins.fcf_margin import FCFMarginChart
 from financial_charts.charts.builtins.free_cash_flow import FreeCashFlowChart
 from financial_charts.charts.builtins.margins import MarginsChart
+from financial_charts.charts.builtins.market_cap import MarketCapChart
 from financial_charts.charts.builtins.net_income import NetIncomeChart
+from financial_charts.charts.builtins.pe_ratio import PERatioChart
 from financial_charts.charts.builtins.price import PriceChart
 from financial_charts.charts.builtins.ratios import RatiosChart
 from financial_charts.charts.builtins.return_on_capital import ReturnOnCapitalChart
+from financial_charts.charts.builtins.return_on_equity import ReturnOnEquityChart
 from financial_charts.charts.builtins.revenue import RevenueChart
 from financial_charts.charts.builtins.shares_outstanding import (
     SharesOutstandingChart,
@@ -39,6 +43,10 @@ _CHARTS: list[Chart] = [
     RatiosChart(),
     ReturnOnCapitalChart(),
     ValuationChart(),
+    MarketCapChart(),
+    PERatioChart(),
+    DividendYieldChart(),
+    ReturnOnEquityChart(),
 ]
 
 

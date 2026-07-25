@@ -141,6 +141,26 @@ def test_tase_ticker_converts_agorot_price_and_reports_ils_financials():
     assert fundamentals.series["total_equity"].available
 
 
+def test_price_series_skips_rows_with_a_nan_close():
+    # yfinance returns a NaN close for the current, still-open trading day —
+    # must be filtered out rather than surfacing as the "latest" price.
+    fixture = _FakeTicker("aapl")
+    history = fixture._frames["history"].copy()
+    history.iloc[-1, history.columns.get_loc("Close")] = float("nan")
+    fixture._frames["history"] = history
+
+    with patch(
+        "financial_charts.sources.yfinance.adapter.yf.Ticker",
+        lambda _ticker: fixture,
+    ):
+        fundamentals = YFinanceAdapter().fetch("AAPL", Market.US, Period.ANNUAL, "5y")
+
+    price = fundamentals.series["price"]
+    assert price.available
+    assert not any(pd.isna(p.value.value) for p in price.points)
+    assert len(price.points) == len(history) - 1
+
+
 def test_unknown_ticker_raises_ticker_not_found():
     class _EmptyTicker:
         info = {"trailingPegRatio": None}

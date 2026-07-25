@@ -23,6 +23,10 @@ def test_available_charts_includes_all_builtins_and_fcf_margin():
         "ratios",
         "return_on_capital",
         "valuation",
+        "market_cap",
+        "pe_ratio",
+        "dividend_yield",
+        "return_on_equity",
     }
 
 

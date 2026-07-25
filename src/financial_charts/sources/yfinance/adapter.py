@@ -253,7 +253,12 @@ def _price_series(
             ),
         )
         for idx, row in history.iterrows()
+        # yfinance reports a NaN close for the current, still-open trading
+        # day — must never surface as a real (or "latest") price point.
+        if pd.notna(row["Close"])
     ]
+    if not points:
+        return _unavailable("price", source_limits)
     return MetricSeries(metric_id="price", points=points, available=True)
 
 
