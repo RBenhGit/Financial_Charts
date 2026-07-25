@@ -15,6 +15,7 @@ from financial_charts.sources.base import (
     SourceUnavailable,
     TickerNotFound,
 )
+from financial_charts.sources.ranges import approx_years
 from financial_charts.template.models import Market, Period
 
 # Illustrative sample tickers spanning company types per market, chosen so a
@@ -73,16 +74,6 @@ def candidate_metrics() -> list[str]:
             for chart in available_charts()
             for metric_id in chart.required_metrics
         }
-    )
-
-
-def _approx_years(period: Period, point_count: int) -> int:
-    if period == Period.ANNUAL:
-        return max(point_count, 0)
-    if period == Period.QUARTERLY:
-        return max(point_count // 4, 0)
-    raise ValueError(
-        f"commission() cannot approximate history depth for period {period.value}"
     )
 
 
@@ -166,7 +157,7 @@ def commission(
                     market_ok = False
 
                 for metric_id in available:
-                    years = _approx_years(
+                    years = approx_years(
                         period, len(fundamentals.series[metric_id].points)
                     )
                     max_history[period] = (

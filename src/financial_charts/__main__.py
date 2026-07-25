@@ -244,6 +244,9 @@ def _run_verify_source(args: argparse.Namespace) -> int:
         f"  unit/currency warnings:                  {report.unit_warnings or 'none'}"
     )
     print(f"  history points per metric:                {report.history_points}")
+    print(
+        f"  declared-vs-actual history depth:        {report.history_warnings or 'none'}"
+    )
 
     if report.has_mismatch:
         print("RESULT: mismatch found", file=sys.stderr)

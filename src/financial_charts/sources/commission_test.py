@@ -1,13 +1,10 @@
 from datetime import date
 
-import pytest
-
 from financial_charts.sources.base import Capability, SourceUnavailable, TickerNotFound
 from financial_charts.sources.commission import (
     SAMPLE_TICKERS,
     CommissionCertificate,
     SampleResult,
-    _approx_years,
     candidate_metrics,
     commission,
     is_degenerate,
@@ -219,13 +216,6 @@ def test_commission_derives_conservative_max_history():
 
     assert certificate.capability.max_history[Period.ANNUAL] == 3  # min(10, 3)
     assert certificate.capability.max_history[Period.QUARTERLY] == 2  # min(10, 2)
-
-
-def test_approx_years_raises_for_an_unhandled_period():
-    # TTM has no real adapter support yet; an unhandled Period member must
-    # raise rather than silently fall through to the annual approximation.
-    with pytest.raises(ValueError, match="ttm"):
-        _approx_years(Period.TTM, 8)
 
 
 def test_is_degenerate_true_when_samples_exist_but_no_market_qualified():
