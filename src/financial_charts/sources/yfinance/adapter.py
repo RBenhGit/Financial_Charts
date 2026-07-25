@@ -130,6 +130,12 @@ def _range_to_yfinance_period(range: str) -> str:
     return _YFINANCE_PERIODS.get(range.lower(), "max")
 
 
+def _unavailable(metric_id: str, source_limits: list[str]) -> MetricSeries:
+    """A metric with no usable data for this ticker: note why, and mark it unavailable."""
+    source_limits.append(f"{metric_id}: no data available for this ticker")
+    return MetricSeries(metric_id=metric_id, points=[], available=False)
+
+
 def _price_series(
     history: pd.DataFrame,
     raw_currency_code: str | None,
@@ -137,8 +143,7 @@ def _price_series(
     source_limits: list[str],
 ) -> MetricSeries:
     if history.empty or currency is None:
-        source_limits.append("price: no data available for this ticker")
-        return MetricSeries(metric_id="price", points=[], available=False)
+        return _unavailable("price", source_limits)
 
     is_agorot = raw_currency_code == AGOROT_CODE
     points = [
@@ -164,8 +169,7 @@ def _statement_series(
     source_limits: list[str],
 ) -> MetricSeries:
     if statement.empty or row_name not in statement.index or currency is None:
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
 
     row = statement.loc[row_name]
     points = [
@@ -181,8 +185,7 @@ def _statement_series(
     # runs the same chronological direction.
     points.sort(key=lambda p: p.date)
     if not points:
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
     return MetricSeries(metric_id=metric_id, points=points, available=True)
 
 
@@ -198,8 +201,7 @@ def _margin_series(
         or numerator_row not in financials.index
         or denominator_row not in financials.index
     ):
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
 
     numerator = financials.loc[numerator_row]
     denominator = financials.loc[denominator_row]
@@ -210,6 +212,5 @@ def _margin_series(
             points.append(Point(date=col.date(), value=float(num) / float(den)))
     points.sort(key=lambda p: p.date)
     if not points:
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
     return MetricSeries(metric_id=metric_id, points=points, available=True)

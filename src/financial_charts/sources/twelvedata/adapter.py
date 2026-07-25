@@ -133,13 +133,18 @@ def _price_params(range: str) -> dict:
     return {"interval": interval, "outputsize": outputsize}
 
 
+def _unavailable(metric_id: str, source_limits: list[str]) -> MetricSeries:
+    """A metric with no usable data for this ticker: note why, and mark it unavailable."""
+    source_limits.append(f"{metric_id}: no data available for this ticker")
+    return MetricSeries(metric_id=metric_id, points=[], available=False)
+
+
 def _price_series(price_json: dict, source_limits: list[str]) -> MetricSeries:
     meta = price_json.get("meta", {})
     values = price_json.get("values", [])
     currency = map_currency(meta.get("currency"))
     if not values or currency is None:
-        source_limits.append("price: no data available for this ticker")
-        return MetricSeries(metric_id="price", points=[], available=False)
+        return _unavailable("price", source_limits)
 
     is_agorot = meta.get("currency") == AGOROT_CODE
     points = [
@@ -165,8 +170,7 @@ def _income_series(
     source_limits: list[str],
 ) -> MetricSeries:
     if currency is None:
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
 
     points = [
         Point(
@@ -177,8 +181,7 @@ def _income_series(
         if row.get("fiscal_date") is not None and row.get(field) is not None
     ]
     if not points:
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
     return MetricSeries(metric_id=metric_id, points=points, available=True)
 
 
@@ -186,8 +189,7 @@ def _cashflow_series(
     cashflow_statement: list[dict], currency: Currency | None, source_limits: list[str]
 ) -> MetricSeries:
     if currency is None:
-        source_limits.append("free_cash_flow: no data available for this ticker")
-        return MetricSeries(metric_id="free_cash_flow", points=[], available=False)
+        return _unavailable("free_cash_flow", source_limits)
 
     points = []
     for row in reversed(cashflow_statement):
@@ -210,8 +212,7 @@ def _cashflow_series(
                 )
             )
     if not points:
-        source_limits.append("free_cash_flow: no data available for this ticker")
-        return MetricSeries(metric_id="free_cash_flow", points=[], available=False)
+        return _unavailable("free_cash_flow", source_limits)
     return MetricSeries(metric_id="free_cash_flow", points=points, available=True)
 
 
@@ -230,6 +231,5 @@ def _margin_series(
         if num is not None and den:
             points.append(Point(date=row["fiscal_date"], value=float(num) / float(den)))
     if not points:
-        source_limits.append(f"{metric_id}: no data available for this ticker")
-        return MetricSeries(metric_id=metric_id, points=[], available=False)
+        return _unavailable(metric_id, source_limits)
     return MetricSeries(metric_id=metric_id, points=points, available=True)
