@@ -19,6 +19,7 @@ from financial_charts.charts.builtins.revenue import RevenueChart
 from financial_charts.charts.builtins.shares_outstanding import (
     SharesOutstandingChart,
 )
+from financial_charts.charts.builtins.valuation import ValuationChart
 
 _CHARTS: list[Chart] = [
     PriceChart(),
@@ -37,6 +38,7 @@ _CHARTS: list[Chart] = [
     DebtLeverageChart(),
     RatiosChart(),
     ReturnOnCapitalChart(),
+    ValuationChart(),
 ]
 
 

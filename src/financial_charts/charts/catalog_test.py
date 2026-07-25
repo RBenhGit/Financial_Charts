@@ -22,6 +22,7 @@ def test_available_charts_includes_all_builtins_and_fcf_margin():
         "debt_leverage",
         "ratios",
         "return_on_capital",
+        "valuation",
     }
 
 

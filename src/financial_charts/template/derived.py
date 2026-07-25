@@ -128,3 +128,15 @@ ROIC = DerivedMetric(
     inputs=("net_income", "total_debt", "total_equity", "cash_and_equivalents"),
     compute=_roic,
 )
+
+
+def _book_value_per_share(total_equity: Money, shares_outstanding: float) -> float:
+    return total_equity.as_base_units() / shares_outstanding
+
+
+BOOK_VALUE_PER_SHARE = DerivedMetric(
+    metric_id="book_value_per_share",
+    title="Book Value / Share",
+    inputs=("total_equity", "shares_outstanding"),
+    compute=_book_value_per_share,
+)

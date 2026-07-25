@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from financial_charts.template.derived import (
+    BOOK_VALUE_PER_SHARE,
     CURRENT_RATIO,
     DEBT_TO_EQUITY,
     FCF_MARGIN,
@@ -247,6 +248,26 @@ def test_roce_divides_ebit_by_capital_employed():
 
     # 20 / (300 - 100) = 0.1
     assert series.points[0].value == pytest.approx(0.1)
+
+
+def test_book_value_per_share_divides_equity_by_share_count():
+    fundamentals = _fundamentals(
+        {
+            "total_equity": _money_series(
+                "total_equity", [(date(2020, 1, 1), 200)], scale=Unit.MILLIONS
+            ),
+            "shares_outstanding": MetricSeries(
+                metric_id="shares_outstanding",
+                points=[Point(date=date(2020, 1, 1), value=100.0)],
+                available=True,
+            ),
+        }
+    )
+
+    series = resolve(fundamentals, BOOK_VALUE_PER_SHARE)
+
+    # $200,000,000 equity / 100 shares = $2,000,000/share
+    assert series.points[0].value == pytest.approx(2_000_000)
 
 
 def test_roic_divides_net_income_by_invested_capital():
