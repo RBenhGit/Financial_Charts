@@ -18,6 +18,8 @@ _DATAFRAME_KEYS = [
     "quarterly_financials",
     "cashflow",
     "quarterly_cashflow",
+    "balance_sheet",
+    "quarterly_balance_sheet",
 ]
 
 
@@ -50,6 +52,14 @@ class _FakeTicker:
     @property
     def quarterly_cashflow(self) -> pd.DataFrame:
         return self._frames["quarterly_cashflow"]
+
+    @property
+    def balance_sheet(self) -> pd.DataFrame:
+        return self._frames["balance_sheet"]
+
+    @property
+    def quarterly_balance_sheet(self) -> pd.DataFrame:
+        return self._frames["quarterly_balance_sheet"]
 
 
 def _fetch_with_fixture(
@@ -88,6 +98,15 @@ def test_us_ticker_maps_price_and_fundamentals_in_usd():
     # normalizes to a positive "amount paid out" for the chart.
     assert all(p.value.value > 0 for p in dividends.points)
 
+    assert fundamentals.series["ebit"].available
+    assert fundamentals.series["total_assets"].available
+    assert fundamentals.series["total_liabilities"].available
+    assert fundamentals.series["total_equity"].available
+    assert fundamentals.series["cash_and_equivalents"].available
+    assert fundamentals.series["total_debt"].available
+    assert fundamentals.series["total_current_assets"].available
+    assert fundamentals.series["total_current_liabilities"].available
+
 
 def test_tase_ticker_converts_agorot_price_and_reports_ils_financials():
     fundamentals = _fetch_with_fixture(
@@ -113,6 +132,13 @@ def test_tase_ticker_converts_agorot_price_and_reports_ils_financials():
     # doesn't break it out) — must degrade to unavailable, not crash.
     assert not fundamentals.series["research_and_development"].available
     assert fundamentals.series["selling_general_administrative"].available
+
+    # A bank's balance sheet has no current/non-current split — must degrade
+    # to unavailable, not crash.
+    assert not fundamentals.series["total_current_assets"].available
+    assert not fundamentals.series["total_current_liabilities"].available
+    assert fundamentals.series["total_assets"].available
+    assert fundamentals.series["total_equity"].available
 
 
 def test_unknown_ticker_raises_ticker_not_found():

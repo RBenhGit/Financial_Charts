@@ -19,5 +19,13 @@ CAPABILITY = Capability(
         "selling_general_administrative",
         "dividends_paid",
         "shares_outstanding",
+        "ebit",
+        "total_assets",
+        "total_liabilities",
+        "total_equity",
+        "cash_and_equivalents",
+        "total_debt",
+        "total_current_assets",
+        "total_current_liabilities",
     },
 )

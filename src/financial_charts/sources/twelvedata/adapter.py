@@ -63,6 +63,9 @@ class TwelveDataAdapter:
         cashflow_json = self._get(
             "cash_flow", symbol=symbol, mic_code=mic_code, period=period.value
         )
+        balance_sheet_json = self._get(
+            "balance_sheet", symbol=symbol, mic_code=mic_code, period=period.value
+        )
 
         display_currency = Currency.ILS if market == Market.TASE else Currency.USD
         source_limits: list[str] = []
@@ -126,6 +129,56 @@ class TwelveDataAdapter:
             "dividends_paid",
             source_limits,
             absolute=True,
+        )
+        series["ebit"] = _income_series(
+            income_statement, "ebit", financial_currency, "ebit", source_limits
+        )
+
+        balance_sheet_statement = balance_sheet_json.get("balance_sheet", [])
+        series["total_assets"] = _income_series(
+            balance_sheet_statement,
+            ("assets", "total_assets"),
+            financial_currency,
+            "total_assets",
+            source_limits,
+        )
+        series["total_liabilities"] = _income_series(
+            balance_sheet_statement,
+            ("liabilities", "total_liabilities"),
+            financial_currency,
+            "total_liabilities",
+            source_limits,
+        )
+        series["total_equity"] = _income_series(
+            balance_sheet_statement,
+            ("shareholders_equity", "total_shareholders_equity"),
+            financial_currency,
+            "total_equity",
+            source_limits,
+        )
+        series["cash_and_equivalents"] = _income_series(
+            balance_sheet_statement,
+            ("assets", "current_assets", "cash_and_cash_equivalents"),
+            financial_currency,
+            "cash_and_equivalents",
+            source_limits,
+        )
+        series["total_current_assets"] = _income_series(
+            balance_sheet_statement,
+            ("assets", "current_assets", "total_current_assets"),
+            financial_currency,
+            "total_current_assets",
+            source_limits,
+        )
+        series["total_current_liabilities"] = _income_series(
+            balance_sheet_statement,
+            ("liabilities", "current_liabilities", "total_current_liabilities"),
+            financial_currency,
+            "total_current_liabilities",
+            source_limits,
+        )
+        series["total_debt"] = _total_debt_series(
+            balance_sheet_statement, financial_currency, source_limits
         )
 
         return CompanyFundamentals(
@@ -238,6 +291,42 @@ def _income_series(
     if not points:
         return _unavailable(metric_id, source_limits)
     return MetricSeries(metric_id=metric_id, points=points, available=True)
+
+
+def _total_debt_series(
+    balance_sheet_statement: list[dict],
+    currency: Currency | None,
+    source_limits: list[str],
+) -> MetricSeries:
+    """Twelve Data's balance sheet has no single `total_debt` field — sum its
+    short-term and long-term debt components (whichever are reported).
+    """
+    if currency is None:
+        return _unavailable("total_debt", source_limits)
+
+    points = []
+    for row in reversed(balance_sheet_statement):
+        if row.get("fiscal_date") is None:
+            continue
+        liabilities = row.get("liabilities", {})
+        short_term = _field_value(
+            liabilities, ("current_liabilities", "short_term_debt")
+        )
+        long_term = _field_value(
+            liabilities, ("non_current_liabilities", "long_term_debt")
+        )
+        if short_term is None and long_term is None:
+            continue
+        total = (short_term or 0) + (long_term or 0)
+        points.append(
+            Point(
+                date=row["fiscal_date"],
+                value=Money(value=float(total), currency=currency, scale=Unit.ONES),
+            )
+        )
+    if not points:
+        return _unavailable("total_debt", source_limits)
+    return MetricSeries(metric_id="total_debt", points=points, available=True)
 
 
 def _income_float_series(

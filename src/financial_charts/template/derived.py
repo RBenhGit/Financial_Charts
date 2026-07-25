@@ -81,3 +81,17 @@ FCF_MARGIN = DerivedMetric(
     inputs=("free_cash_flow", "revenue"),
     compute=ratio,
 )
+
+CURRENT_RATIO = DerivedMetric(
+    metric_id="current_ratio",
+    title="Current Ratio",
+    inputs=("total_current_assets", "total_current_liabilities"),
+    compute=ratio,
+)
+
+DEBT_TO_EQUITY = DerivedMetric(
+    metric_id="debt_to_equity",
+    title="Debt / Equity",
+    inputs=("total_debt", "total_equity"),
+    compute=ratio,
+)

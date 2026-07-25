@@ -28,6 +28,7 @@ def _fetch_with_fixture(
         "time_series": fixture["price"],
         "income_statement": fixture["income"],
         "cash_flow": fixture["cashflow"],
+        "balance_sheet": fixture["balance_sheet"],
     }
 
     def fake_get(self, endpoint: str, **params) -> dict:
@@ -69,6 +70,15 @@ def test_us_ticker_maps_price_and_fundamentals_in_usd():
     # normalizes to a positive "amount paid out" for the chart.
     assert all(p.value.value > 0 for p in dividends.points)
 
+    assert fundamentals.series["ebit"].available
+    assert fundamentals.series["total_assets"].available
+    assert fundamentals.series["total_liabilities"].available
+    assert fundamentals.series["total_equity"].available
+    assert fundamentals.series["cash_and_equivalents"].available
+    assert fundamentals.series["total_debt"].available
+    assert fundamentals.series["total_current_assets"].available
+    assert fundamentals.series["total_current_liabilities"].available
+
 
 def test_tase_ticker_converts_agorot_price_and_flags_missing_gross_margin():
     fundamentals = _fetch_with_fixture(
@@ -93,6 +103,15 @@ def test_tase_ticker_converts_agorot_price_and_flags_missing_gross_margin():
     assert not fundamentals.series["ebitda"].available
     assert not fundamentals.series["research_and_development"].available
     assert fundamentals.series["selling_general_administrative"].available
+
+    # A bank's balance sheet has no current/non-current split — must degrade
+    # to unavailable, not crash. Total debt is still derivable from long-term
+    # debt alone even though short-term debt is null here.
+    assert not fundamentals.series["total_current_assets"].available
+    assert not fundamentals.series["total_current_liabilities"].available
+    assert fundamentals.series["total_assets"].available
+    assert fundamentals.series["total_equity"].available
+    assert fundamentals.series["total_debt"].available
 
 
 def test_unknown_ticker_raises_ticker_not_found():
@@ -153,6 +172,7 @@ def test_income_row_missing_fiscal_date_is_skipped_not_a_crash():
             "meta": fixture["income"]["meta"],
         },
         "cash_flow": fixture["cashflow"],
+        "balance_sheet": fixture["balance_sheet"],
     }
 
     def fake_get(self, endpoint: str, **params) -> dict:

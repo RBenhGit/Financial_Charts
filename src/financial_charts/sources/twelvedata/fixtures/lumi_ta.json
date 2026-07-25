@@ -2526,5 +2526,426 @@
         "free_cash_flow": 4963000000
       }
     ]
+  },
+  "balance_sheet": {
+    "meta": {
+      "symbol": "LUMI",
+      "name": "Bank Leumi Le-Israel B.M.",
+      "currency": "ILS",
+      "exchange": "TASE",
+      "mic_code": "XTAE",
+      "exchange_timezone": "Asia/Jerusalem",
+      "period": "Annual"
+    },
+    "balance_sheet": [
+      {
+        "fiscal_date": "2025-12-31",
+        "year": 2026,
+        "assets": {
+          "current_assets": {
+            "cash": 131904000000,
+            "cash_equivalents": null,
+            "cash_and_cash_equivalents": 154647000000,
+            "other_short_term_investments": null,
+            "accounts_receivable": null,
+            "other_receivables": null,
+            "inventory": null,
+            "prepaid_assets": 290000000,
+            "restricted_cash": null,
+            "assets_held_for_sale": null,
+            "hedging_assets": null,
+            "other_current_assets": null,
+            "total_current_assets": null
+          },
+          "non_current_assets": {
+            "properties": 2942000000,
+            "land_and_improvements": null,
+            "machinery_furniture_equipment": 8818000000,
+            "construction_in_progress": null,
+            "leases": null,
+            "accumulated_depreciation": -7987000000,
+            "goodwill": null,
+            "investment_properties": null,
+            "financial_assets": null,
+            "intangible_assets": null,
+            "investments_and_advances": 176345000000,
+            "other_non_current_assets": null,
+            "total_non_current_assets": null
+          },
+          "total_assets": 872971000000
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 1478000000,
+            "accrued_expenses": null,
+            "short_term_debt": null,
+            "deferred_revenue": null,
+            "tax_payable": null,
+            "pensions": null,
+            "other_current_liabilities": null,
+            "total_current_liabilities": null
+          },
+          "non_current_liabilities": {
+            "long_term_provisions": null,
+            "long_term_debt": 44796000000,
+            "provision_for_risks_and_charges": null,
+            "deferred_liabilities": null,
+            "derivative_product_liabilities": 24604000000,
+            "other_non_current_liabilities": null,
+            "total_non_current_liabilities": null
+          },
+          "total_liabilities": 804836000000
+        },
+        "shareholders_equity": {
+          "common_stock": 7072000000,
+          "retained_earnings": 61287000000,
+          "other_shareholders_equity": null,
+          "total_shareholders_equity": 68135000000,
+          "additional_paid_in_capital": 387000000,
+          "treasury_stock": null,
+          "minority_interest": 5000000
+        }
+      },
+      {
+        "fiscal_date": "2024-12-31",
+        "year": 2025,
+        "assets": {
+          "current_assets": {
+            "cash": 137571000000,
+            "cash_equivalents": null,
+            "cash_and_cash_equivalents": 155828000000,
+            "other_short_term_investments": null,
+            "accounts_receivable": null,
+            "other_receivables": null,
+            "inventory": null,
+            "prepaid_assets": 251000000,
+            "restricted_cash": null,
+            "assets_held_for_sale": null,
+            "hedging_assets": null,
+            "other_current_assets": null,
+            "total_current_assets": null
+          },
+          "non_current_assets": {
+            "properties": 2899000000,
+            "land_and_improvements": null,
+            "machinery_furniture_equipment": 8276000000,
+            "construction_in_progress": null,
+            "leases": null,
+            "accumulated_depreciation": -7759000000,
+            "goodwill": null,
+            "investment_properties": null,
+            "financial_assets": null,
+            "intangible_assets": null,
+            "investments_and_advances": 156874000000,
+            "other_non_current_assets": null,
+            "total_non_current_assets": null
+          },
+          "total_assets": 785551000000
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 1579000000,
+            "accrued_expenses": null,
+            "short_term_debt": null,
+            "deferred_revenue": null,
+            "tax_payable": null,
+            "pensions": null,
+            "other_current_liabilities": null,
+            "total_current_liabilities": null
+          },
+          "non_current_liabilities": {
+            "long_term_provisions": null,
+            "long_term_debt": 32540000000,
+            "provision_for_risks_and_charges": null,
+            "deferred_liabilities": null,
+            "derivative_product_liabilities": 27752000000,
+            "other_non_current_liabilities": null,
+            "total_non_current_liabilities": null
+          },
+          "total_liabilities": 723888000000
+        },
+        "shareholders_equity": {
+          "common_stock": 7092000000,
+          "retained_earnings": 54949000000,
+          "other_shareholders_equity": null,
+          "total_shareholders_equity": 61663000000,
+          "additional_paid_in_capital": 1590000000,
+          "treasury_stock": null,
+          "minority_interest": 5000000
+        }
+      },
+      {
+        "fiscal_date": "2023-12-31",
+        "year": 2024,
+        "assets": {
+          "current_assets": {
+            "cash": 85930000000,
+            "cash_equivalents": null,
+            "cash_and_cash_equivalents": 105476000000,
+            "other_short_term_investments": null,
+            "accounts_receivable": null,
+            "other_receivables": null,
+            "inventory": null,
+            "prepaid_assets": 233000000,
+            "restricted_cash": null,
+            "assets_held_for_sale": null,
+            "hedging_assets": null,
+            "other_current_assets": null,
+            "total_current_assets": null
+          },
+          "non_current_assets": {
+            "properties": 3344000000,
+            "land_and_improvements": null,
+            "machinery_furniture_equipment": 7985000000,
+            "construction_in_progress": null,
+            "leases": null,
+            "accumulated_depreciation": -7794000000,
+            "goodwill": null,
+            "investment_properties": null,
+            "financial_assets": null,
+            "intangible_assets": null,
+            "investments_and_advances": 191472000000,
+            "other_non_current_assets": null,
+            "total_non_current_assets": null
+          },
+          "total_assets": null
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 1303000000,
+            "accrued_expenses": null,
+            "short_term_debt": null,
+            "deferred_revenue": null,
+            "tax_payable": null,
+            "pensions": null,
+            "other_current_liabilities": null,
+            "total_current_liabilities": null
+          },
+          "non_current_liabilities": {
+            "long_term_provisions": null,
+            "long_term_debt": 32764000000,
+            "provision_for_risks_and_charges": null,
+            "deferred_liabilities": null,
+            "derivative_product_liabilities": 26636000000,
+            "other_non_current_liabilities": null,
+            "total_non_current_liabilities": null
+          },
+          "total_liabilities": null
+        },
+        "shareholders_equity": {
+          "common_stock": 7111000000,
+          "retained_earnings": 47720000000,
+          "other_shareholders_equity": null,
+          "total_shareholders_equity": 54502000000,
+          "additional_paid_in_capital": 2250000000,
+          "treasury_stock": null,
+          "minority_interest": 5000000
+        }
+      },
+      {
+        "fiscal_date": "2022-12-31",
+        "year": 2023,
+        "assets": {
+          "current_assets": {
+            "cash": 168621000000,
+            "cash_equivalents": null,
+            "cash_and_cash_equivalents": 186569000000,
+            "other_short_term_investments": null,
+            "accounts_receivable": null,
+            "other_receivables": null,
+            "inventory": null,
+            "prepaid_assets": 207000000,
+            "restricted_cash": null,
+            "assets_held_for_sale": null,
+            "hedging_assets": null,
+            "other_current_assets": null,
+            "total_current_assets": null
+          },
+          "non_current_assets": {
+            "properties": 3130000000,
+            "land_and_improvements": null,
+            "machinery_furniture_equipment": 7801000000,
+            "construction_in_progress": null,
+            "leases": null,
+            "accumulated_depreciation": -7625000000,
+            "goodwill": 0,
+            "investment_properties": null,
+            "financial_assets": null,
+            "intangible_assets": null,
+            "investments_and_advances": 114535000000,
+            "other_non_current_assets": null,
+            "total_non_current_assets": null
+          },
+          "total_assets": null
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 1186000000,
+            "accrued_expenses": null,
+            "short_term_debt": null,
+            "deferred_revenue": null,
+            "tax_payable": null,
+            "pensions": null,
+            "other_current_liabilities": null,
+            "total_current_liabilities": null
+          },
+          "non_current_liabilities": {
+            "long_term_provisions": null,
+            "long_term_debt": 28372000000,
+            "provision_for_risks_and_charges": null,
+            "deferred_liabilities": null,
+            "derivative_product_liabilities": 23311000000,
+            "other_non_current_liabilities": null,
+            "total_non_current_liabilities": null
+          },
+          "total_liabilities": null
+        },
+        "shareholders_equity": {
+          "common_stock": 7132000000,
+          "retained_earnings": 42774000000,
+          "other_shareholders_equity": null,
+          "total_shareholders_equity": 49443000000,
+          "additional_paid_in_capital": 2829000000,
+          "treasury_stock": null,
+          "minority_interest": 5000000
+        }
+      },
+      {
+        "fiscal_date": "2021-12-31",
+        "year": 2022,
+        "assets": {
+          "current_assets": {
+            "cash": 183844000000,
+            "cash_equivalents": null,
+            "cash_and_cash_equivalents": 197402000000,
+            "other_short_term_investments": null,
+            "accounts_receivable": null,
+            "other_receivables": null,
+            "inventory": null,
+            "prepaid_assets": 229000000,
+            "restricted_cash": null,
+            "assets_held_for_sale": null,
+            "hedging_assets": null,
+            "other_current_assets": null,
+            "total_current_assets": null
+          },
+          "non_current_assets": {
+            "properties": 3675000000,
+            "land_and_improvements": null,
+            "machinery_furniture_equipment": 8037000000,
+            "construction_in_progress": null,
+            "leases": null,
+            "accumulated_depreciation": -8195000000,
+            "goodwill": 28000000,
+            "investment_properties": null,
+            "financial_assets": null,
+            "intangible_assets": null,
+            "investments_and_advances": 102067000000,
+            "other_non_current_assets": null,
+            "total_non_current_assets": null
+          },
+          "total_assets": null
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 1005000000,
+            "accrued_expenses": null,
+            "short_term_debt": null,
+            "deferred_revenue": null,
+            "tax_payable": null,
+            "pensions": null,
+            "other_current_liabilities": null,
+            "total_current_liabilities": null
+          },
+          "non_current_liabilities": {
+            "long_term_provisions": null,
+            "long_term_debt": 16230000000,
+            "provision_for_risks_and_charges": null,
+            "deferred_liabilities": null,
+            "derivative_product_liabilities": 15551000000,
+            "other_non_current_liabilities": null,
+            "total_non_current_liabilities": null
+          },
+          "total_liabilities": null
+        },
+        "shareholders_equity": {
+          "common_stock": 7041000000,
+          "retained_earnings": 37209000000,
+          "other_shareholders_equity": null,
+          "total_shareholders_equity": 42052000000,
+          "additional_paid_in_capital": 184000000,
+          "treasury_stock": null,
+          "minority_interest": 442000000
+        }
+      },
+      {
+        "fiscal_date": "2020-12-31",
+        "year": 2021,
+        "assets": {
+          "current_assets": {
+            "cash": 126765000000,
+            "cash_equivalents": null,
+            "cash_and_cash_equivalents": 136194000000,
+            "other_short_term_investments": null,
+            "accounts_receivable": null,
+            "other_receivables": null,
+            "inventory": null,
+            "prepaid_assets": 244000000,
+            "restricted_cash": null,
+            "assets_held_for_sale": null,
+            "hedging_assets": null,
+            "other_current_assets": null,
+            "total_current_assets": null
+          },
+          "non_current_assets": {
+            "properties": 3898000000,
+            "land_and_improvements": null,
+            "machinery_furniture_equipment": 7698000000,
+            "construction_in_progress": null,
+            "leases": null,
+            "accumulated_depreciation": -7735000000,
+            "goodwill": 30000000,
+            "investment_properties": null,
+            "financial_assets": null,
+            "intangible_assets": null,
+            "investments_and_advances": 108344000000,
+            "other_non_current_assets": null,
+            "total_non_current_assets": null
+          },
+          "total_assets": null
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 4311000000,
+            "accrued_expenses": null,
+            "short_term_debt": null,
+            "deferred_revenue": null,
+            "tax_payable": null,
+            "pensions": null,
+            "other_current_liabilities": null,
+            "total_current_liabilities": null
+          },
+          "non_current_liabilities": {
+            "long_term_provisions": null,
+            "long_term_debt": 17234000000,
+            "provision_for_risks_and_charges": null,
+            "deferred_liabilities": null,
+            "derivative_product_liabilities": 17315000000,
+            "other_non_current_liabilities": null,
+            "total_non_current_liabilities": null
+          },
+          "total_liabilities": null
+        },
+        "shareholders_equity": {
+          "common_stock": 7041000000,
+          "retained_earnings": 33178000000,
+          "other_shareholders_equity": null,
+          "total_shareholders_equity": 38095000000,
+          "additional_paid_in_capital": 184000000,
+          "treasury_stock": null,
+          "minority_interest": 431000000
+        }
+      }
+    ]
   }
 }

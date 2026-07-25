@@ -2,7 +2,14 @@ from datetime import date
 
 import pytest
 
-from financial_charts.template.derived import FCF_MARGIN, DerivedMetric, ratio, resolve
+from financial_charts.template.derived import (
+    CURRENT_RATIO,
+    DEBT_TO_EQUITY,
+    FCF_MARGIN,
+    DerivedMetric,
+    ratio,
+    resolve,
+)
 from financial_charts.template.models import (
     CompanyFundamentals,
     Currency,
@@ -191,6 +198,36 @@ def test_resolve_skips_a_point_whose_compute_raises_value_error():
     series = resolve(fundamentals, raises_on_first_date)
 
     assert [p.date for p in series.points] == [date(2021, 1, 1)]
+
+
+def test_current_ratio_divides_current_assets_by_current_liabilities():
+    fundamentals = _fundamentals(
+        {
+            "total_current_assets": _money_series(
+                "total_current_assets", [(date(2020, 1, 1), 200)]
+            ),
+            "total_current_liabilities": _money_series(
+                "total_current_liabilities", [(date(2020, 1, 1), 100)]
+            ),
+        }
+    )
+
+    series = resolve(fundamentals, CURRENT_RATIO)
+
+    assert series.points[0].value == pytest.approx(2.0)
+
+
+def test_debt_to_equity_divides_total_debt_by_total_equity():
+    fundamentals = _fundamentals(
+        {
+            "total_debt": _money_series("total_debt", [(date(2020, 1, 1), 50)]),
+            "total_equity": _money_series("total_equity", [(date(2020, 1, 1), 200)]),
+        }
+    )
+
+    series = resolve(fundamentals, DEBT_TO_EQUITY)
+
+    assert series.points[0].value == pytest.approx(0.25)
 
 
 def test_resolve_skips_a_point_whose_compute_raises_attribute_or_type_error():

@@ -17,6 +17,10 @@ def test_available_charts_includes_all_builtins_and_fcf_margin():
         "expenses",
         "dividends",
         "shares_outstanding",
+        "cash_and_debt",
+        "assets_equity_liabilities",
+        "debt_leverage",
+        "ratios",
     }
 
 

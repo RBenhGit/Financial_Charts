@@ -67,14 +67,18 @@ class YFinanceAdapter:
         )
 
         # `range` only bounds this price fetch (via `history(period=...)`);
-        # yfinance's `financials`/`cashflow` properties return whatever depth
-        # the API gives regardless of the requested range.
+        # yfinance's `financials`/`cashflow`/`balance_sheet` properties return
+        # whatever depth the API gives regardless of the requested range.
         statements = (
-            (yf_ticker.financials, yf_ticker.cashflow)
+            (yf_ticker.financials, yf_ticker.cashflow, yf_ticker.balance_sheet)
             if period == Period.ANNUAL
-            else (yf_ticker.quarterly_financials, yf_ticker.quarterly_cashflow)
+            else (
+                yf_ticker.quarterly_financials,
+                yf_ticker.quarterly_cashflow,
+                yf_ticker.quarterly_balance_sheet,
+            )
         )
-        financials, cashflow = statements
+        financials, cashflow, balance_sheet = statements
 
         series["revenue"] = _statement_series(
             financials,
@@ -146,6 +150,65 @@ class YFinanceAdapter:
             financials,
             "Diluted Average Shares",
             "shares_outstanding",
+            source_limits,
+        )
+        series["ebit"] = _statement_series(
+            financials, "EBIT", financial_currency, Unit.ONES, "ebit", source_limits
+        )
+        series["total_assets"] = _statement_series(
+            balance_sheet,
+            "Total Assets",
+            financial_currency,
+            Unit.ONES,
+            "total_assets",
+            source_limits,
+        )
+        series["total_liabilities"] = _statement_series(
+            balance_sheet,
+            "Total Liabilities Net Minority Interest",
+            financial_currency,
+            Unit.ONES,
+            "total_liabilities",
+            source_limits,
+        )
+        series["total_equity"] = _statement_series(
+            balance_sheet,
+            "Stockholders Equity",
+            financial_currency,
+            Unit.ONES,
+            "total_equity",
+            source_limits,
+        )
+        series["cash_and_equivalents"] = _statement_series(
+            balance_sheet,
+            "Cash And Cash Equivalents",
+            financial_currency,
+            Unit.ONES,
+            "cash_and_equivalents",
+            source_limits,
+        )
+        series["total_debt"] = _statement_series(
+            balance_sheet,
+            "Total Debt",
+            financial_currency,
+            Unit.ONES,
+            "total_debt",
+            source_limits,
+        )
+        series["total_current_assets"] = _statement_series(
+            balance_sheet,
+            "Current Assets",
+            financial_currency,
+            Unit.ONES,
+            "total_current_assets",
+            source_limits,
+        )
+        series["total_current_liabilities"] = _statement_series(
+            balance_sheet,
+            "Current Liabilities",
+            financial_currency,
+            Unit.ONES,
+            "total_current_liabilities",
             source_limits,
         )
 
