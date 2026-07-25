@@ -120,6 +120,32 @@ def test_index_annotates_charts_with_supporting_sources(client):
     assert "Supported by: twelvedata, yfinance" in body
 
 
+def test_index_source_dropdown_reflects_the_live_registry(client):
+    # The dropdown must be read live from sources/registry.py, not a
+    # hand-maintained literal that can drift once a third source is
+    # registered (the same failure shape as the fixed registry-dicts-drift
+    # bug, recurring in this sibling module).
+    with patch(
+        "financial_charts.web.app.registered_sources",
+        return_value=["yfinance", "twelvedata", "acmedata"],
+    ):
+        response = client.get("/")
+
+    body = response.get_data(as_text=True)
+    assert 'value="acmedata"' in body
+
+
+def test_index_chart_set_dropdown_reflects_the_live_registry(client):
+    with patch(
+        "financial_charts.web.app.registered_chart_sets",
+        return_value=["fundamentals", "growth"],
+    ):
+        response = client.get("/")
+
+    body = response.get_data(as_text=True)
+    assert 'value="growth"' in body
+
+
 def test_render_with_charts_param_selects_only_named_charts(client):
     with patch(
         "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()

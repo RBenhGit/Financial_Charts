@@ -30,3 +30,14 @@ def get_chart_set(name: str) -> list[Chart]:
         raise KeyError(
             f"unknown chart set {name!r}; registered sets: {sorted(_CHART_SETS)}"
         ) from None
+
+
+def registered_chart_sets() -> list[str]:
+    """Curated, named chart sets meant for a picker (e.g. the web dropdown).
+
+    Excludes the ad-hoc `"custom:..."` sets that `__main__.py`/`web/app.py`
+    register on the fly for one-off `--charts`/checkbox selections — those
+    are a different mechanism, not a curated option a user should choose
+    from a list.
+    """
+    return sorted(name for name in _CHART_SETS if not name.startswith("custom:"))

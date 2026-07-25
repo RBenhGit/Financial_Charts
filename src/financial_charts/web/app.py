@@ -2,7 +2,11 @@ from flask import Flask, render_template, request
 
 from financial_charts import chart_support, config
 from financial_charts.charts.catalog import available_charts, get_chart
-from financial_charts.charts.registry import get_chart_set, register_chart_set
+from financial_charts.charts.registry import (
+    get_chart_set,
+    register_chart_set,
+    registered_chart_sets,
+)
 from financial_charts.dashboard.render import render_html
 from financial_charts.sources.base import (
     MissingCredentials,
@@ -12,16 +16,13 @@ from financial_charts.sources.base import (
 )
 from financial_charts.sources.market import is_valid_ticker, normalize_ticker
 from financial_charts.sources.ranges import RANGES
-from financial_charts.sources.registry import get_source
+from financial_charts.sources.registry import get_source, registered_sources
 from financial_charts.sources.validation import require_supported_period
 from financial_charts.template.models import Period
 from financial_charts.web.service import load_fundamentals
 
-# Form option lists owned by this module, keeping it independent of the registries'
-# internals. Submitted values are still validated by the real get_source/get_chart_set
-# inside the render path, so an unsupported value produces a proper error, not a blank.
-SOURCES = ["yfinance", "twelvedata"]
-CHART_SETS = ["fundamentals"]
+# Submitted values are still validated by the real get_source/get_chart_set inside the
+# render path, so an unsupported value produces a proper error, not a blank.
 PERIODS = [p.value for p in Period]
 
 
@@ -52,12 +53,13 @@ def create_app() -> Flask:
     def index() -> str:
         return render_template(
             "index.html",
-            sources=SOURCES,
+            # Read live from the registries (not hand-maintained literals) so a
+            # newly registered source or curated chart set appears in the
+            # picker without a template/module change here.
+            sources=registered_sources(),
             periods=PERIODS,
             ranges=RANGES,
-            chart_sets=CHART_SETS,
-            # Read live from the catalog (unlike the literals above) so a new
-            # registered chart appears in the picker without a template change.
+            chart_sets=registered_chart_sets(),
             charts=available_charts(),
             chart_support={
                 name: sorted(sources)

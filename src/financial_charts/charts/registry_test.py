@@ -1,6 +1,10 @@
 import pytest
 
-from financial_charts.charts.registry import get_chart_set, register_chart_set
+from financial_charts.charts.registry import (
+    get_chart_set,
+    register_chart_set,
+    registered_chart_sets,
+)
 
 
 def test_builtin_fundamentals_set_has_six_charts():
@@ -26,3 +30,13 @@ def test_can_register_custom_chart_set():
     register_chart_set("price-only", charts[:1])
 
     assert [c.name for c in get_chart_set("price-only")] == ["price"]
+
+
+def test_registered_chart_sets_includes_curated_names():
+    assert "fundamentals" in registered_chart_sets()
+
+
+def test_registered_chart_sets_excludes_ad_hoc_custom_sets():
+    register_chart_set("custom:eps,price", get_chart_set("fundamentals")[:2])
+
+    assert "custom:eps,price" not in registered_chart_sets()
