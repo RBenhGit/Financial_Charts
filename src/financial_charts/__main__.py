@@ -40,7 +40,10 @@ def _add_render_arguments(parser: argparse.ArgumentParser) -> None:
         "--source", default=None, help="overrides the DATA_SOURCE env var"
     )
     parser.add_argument(
-        "--period", choices=[p.value for p in Period], default=config.DEFAULT_PERIOD
+        "--period",
+        choices=[p.value for p in Period],
+        default=config.DEFAULT_PERIOD,
+        help="ttm is modeled but not yet supported by any registered source",
     )
     parser.add_argument(
         "--range", type=str.lower, choices=RANGES, default=config.DEFAULT_RANGE

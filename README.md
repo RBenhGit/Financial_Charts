@@ -38,7 +38,9 @@ uv run python -m financial_charts TEVA.TA --source twelvedata --range 10y --out 
 `TICKER [--source] [--period quarterly|ttm|annual] [--range 6m|1y|3y|5y|10y|max]
 [--chart-set] [--out PATH]`. `--out` accepts `.html`, `.png`, or `.pdf`; it defaults to
 `out/<TICKER>.html`. Unavailable metrics render a "No Data" card and are listed under the
-page's source-limits panel.
+page's source-limits panel. **`--period ttm` is accepted by the parser but not yet declared
+by any registered source** — it fails fast with a clear "source does not support period ttm"
+error rather than a blank or mislabeled chart.
 
 ### Web UI — a browser front-end (static charts)
 

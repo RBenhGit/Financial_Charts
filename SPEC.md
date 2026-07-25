@@ -32,7 +32,10 @@ native currency, and degrade gracefully to "No Data" where a source lacks a metr
   developer can define **custom chart sets**. The dashboard renders a named chart set.
 - **Static output**: a single HTML page (grid of chart cards) with optional PNG/PDF export.
 - **Configurable-per-render** period (Quarterly / TTM / Annual) and time range
-  (6M / 1Y / 3Y / 5Y / 10Y / max), via CLI/config with sensible defaults.
+  (6M / 1Y / 3Y / 5Y / 10Y / max), via CLI/config with sensible defaults. **Status:** `TTM`
+  is modeled in `Period` but no adapter has declared support for it yet — a request for it
+  is rejected pre-fetch by `require_supported_period` with a clear error, same as any other
+  declared gap, rather than silently mismapped.
 
 **Out of scope (v1):**
 - Interactive UI (hover, live toggles, expand-to-detail, in-page downloads) — static only.
