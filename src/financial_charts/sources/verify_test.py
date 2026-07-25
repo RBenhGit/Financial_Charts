@@ -253,3 +253,106 @@ def test_unconverted_agorot_price_triggers_unit_warning():
     # verify-source exists specifically to catch this TASE gotcha — a detected
     # unit warning must fail the reconciliation, not just be printed as a note.
     assert report.has_mismatch
+
+
+def _fundamentals_with_revenue(
+    market: Market, value: float, currency: Currency = Currency.ILS
+) -> CompanyFundamentals:
+    return CompanyFundamentals(
+        ticker="EXMP.TA" if market == Market.TASE else "EXMP",
+        market=market,
+        currency=Currency.ILS if market == Market.TASE else Currency.USD,
+        period=Period.ANNUAL,
+        range="4y",
+        series={
+            "revenue": MetricSeries(
+                metric_id="revenue",
+                points=[Point(date=date(2026, 1, 1), value=_money(value, currency))],
+                available=True,
+            ),
+        },
+    )
+
+
+def test_tase_revenue_scaled_down_too_far_triggers_unit_warning():
+    # A revenue figure that should be in the hundreds of millions of shekels,
+    # left at a raw few hundred — the "millions of shekels" half of the TASE
+    # unit trap, e.g. a source that reports pre-scaled figures the adapter
+    # never multiplied back up.
+    capability = Capability(
+        markets={Market.TASE},
+        periods={Period.ANNUAL},
+        max_history={Period.ANNUAL: 4},
+        metrics={"revenue"},
+    )
+    fundamentals = _fundamentals_with_revenue(Market.TASE, 500, Currency.ILS)
+
+    report = reconcile(
+        _StubAdapter(capability, fundamentals),
+        "EXMP.TA",
+        Market.TASE,
+        Period.ANNUAL,
+        "4y",
+    )
+
+    assert len(report.unit_warnings) == 1
+    assert "revenue" in report.unit_warnings[0]
+    assert report.has_mismatch
+
+
+def test_tase_revenue_at_a_plausible_magnitude_is_not_flagged():
+    capability = Capability(
+        markets={Market.TASE},
+        periods={Period.ANNUAL},
+        max_history={Period.ANNUAL: 4},
+        metrics={"revenue"},
+    )
+    fundamentals = _fundamentals_with_revenue(Market.TASE, 500_000_000, Currency.ILS)
+
+    report = reconcile(
+        _StubAdapter(capability, fundamentals),
+        "EXMP.TA",
+        Market.TASE,
+        Period.ANNUAL,
+        "4y",
+    )
+
+    assert report.unit_warnings == []
+
+
+def test_tase_revenue_denominated_in_usd_is_not_shekel_magnitude_checked():
+    # A dual-currency TASE company (e.g. Teva: ILS price, USD statements) —
+    # the shekel-magnitude heuristic must not apply to a non-ILS statement.
+    capability = Capability(
+        markets={Market.TASE},
+        periods={Period.ANNUAL},
+        max_history={Period.ANNUAL: 4},
+        metrics={"revenue"},
+    )
+    fundamentals = _fundamentals_with_revenue(Market.TASE, 500, Currency.USD)
+
+    report = reconcile(
+        _StubAdapter(capability, fundamentals),
+        "EXMP.TA",
+        Market.TASE,
+        Period.ANNUAL,
+        "4y",
+    )
+
+    assert report.unit_warnings == []
+
+
+def test_us_market_revenue_is_never_shekel_magnitude_checked():
+    capability = Capability(
+        markets={Market.US},
+        periods={Period.ANNUAL},
+        max_history={Period.ANNUAL: 4},
+        metrics={"revenue"},
+    )
+    fundamentals = _fundamentals_with_revenue(Market.US, 500, Currency.USD)
+
+    report = reconcile(
+        _StubAdapter(capability, fundamentals), "EXMP", Market.US, Period.ANNUAL, "4y"
+    )
+
+    assert report.unit_warnings == []

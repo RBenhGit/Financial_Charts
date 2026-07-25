@@ -2,10 +2,22 @@ from pydantic import BaseModel
 
 from financial_charts.sources.base import Capability, DataSource
 from financial_charts.sources.ranges import approx_years, range_years
-from financial_charts.template.models import CompanyFundamentals, Market, Period
+from financial_charts.template.models import (
+    CompanyFundamentals,
+    Currency,
+    Market,
+    Money,
+    Period,
+)
 
 # A TASE price above this looks like raw agorot that was never divided into shekels.
 _AGOROT_NOT_CONVERTED_THRESHOLD = 100_000
+
+# No real operating company's annual revenue is this small — a TASE revenue figure
+# below it looks like the "millions of shekels" half of the unit trap: a source that
+# reports statement figures pre-scaled (thousands/millions) that never got multiplied
+# back up to raw shekels.
+_TASE_REVENUE_TOO_SMALL_THRESHOLD = 100_000
 
 # price's point count reflects the requested --range, not the source's true max
 # depth (see both adapters' `fetch()` comments on this) — statement endpoints
@@ -101,12 +113,34 @@ def _history_warnings(
 
 def _unit_warnings(market: Market, fundamentals: CompanyFundamentals) -> list[str]:
     warnings: list[str] = []
+    if market != Market.TASE:
+        return warnings
+
     price = fundamentals.series.get("price")
-    if market == Market.TASE and price and price.available and price.points:
+    if price and price.available and price.points:
         last_price = price.points[-1].value
         if last_price.value > _AGOROT_NOT_CONVERTED_THRESHOLD:
             warnings.append(
                 f"TASE price {last_price.value} looks like unconverted agorot "
                 "(expected shekels after /100 conversion)"
             )
+
+    # The other half of the TASE unit trap: financial-statement figures, not
+    # just price. Scoped to `revenue` and to ILS-denominated statements only —
+    # a dual-currency company (e.g. Teva: ILS price, USD statements) legitimately
+    # has non-ILS statement figures this check must not apply to.
+    revenue = fundamentals.series.get("revenue")
+    if revenue and revenue.available and revenue.points:
+        last_revenue = revenue.points[-1].value
+        if (
+            isinstance(last_revenue, Money)
+            and last_revenue.currency == Currency.ILS
+            and 0 <= last_revenue.as_base_units() < _TASE_REVENUE_TOO_SMALL_THRESHOLD
+        ):
+            warnings.append(
+                f"TASE revenue {last_revenue.as_base_units():.0f} ILS looks implausibly "
+                "small for an operating company — check whether the source's statement "
+                "figures need scaling up (the millions-of-shekels half of the TASE unit trap)"
+            )
+
     return warnings
