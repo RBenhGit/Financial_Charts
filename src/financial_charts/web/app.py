@@ -152,6 +152,13 @@ def create_app() -> Flask:
                 name: sorted(sources)
                 for name, sources in chart_support.chart_support().items()
             },
+            # Pre-check the checkbox picker with the default chart set's own
+            # members — purely a UI starting point, doesn't change what an
+            # empty-checkbox submit renders (that's still driven by the
+            # Chart set dropdown, unaffected by this).
+            default_chart_names={
+                c.name for c in get_chart_set(config.DEFAULT_CHART_SET)
+            },
             defaults={
                 "source": config.data_source_name(),
                 "period": config.DEFAULT_PERIOD,
