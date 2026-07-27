@@ -5,25 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Financial Charts</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font-family: system-ui, sans-serif; margin: 0; }
-  header { padding: 1rem 1.5rem; border-bottom: 1px solid #ccc; }
+  :root {
+    color-scheme: light dark;
+    --surface: #fcfcfb;
+    --page: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-secondary: #52514e;
+    --ink-muted: #898781;
+    --border: rgba(11, 11, 11, 0.10);
+    --error: #a33;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #1a1a19;
+      --page: #0d0d0d;
+      --ink: #ffffff;
+      --ink-secondary: #c3c2b7;
+      --border: rgba(255, 255, 255, 0.10);
+      --error: #e66767;
+    }
+  }
+  body { font-family: system-ui, sans-serif; margin: 0; background: var(--page); color: var(--ink); }
+  header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); }
   h1 { margin: 0 0 0.75rem; font-size: 1.25rem; }
   form { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }
   .field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
   input, select, button { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
   button { cursor: pointer; }
-  fieldset.field { border: 1px solid #ccc; border-radius: 4px; padding: 0.4rem 0.6rem; }
+  fieldset.field { border: 1px solid var(--border); border-radius: 4px; padding: 0.4rem 0.6rem; }
   fieldset.field legend { padding: 0 0.3rem; }
   fieldset.field label { display: flex; align-items: center; gap: 0.3rem; padding: 0; font-weight: normal; }
   fieldset.field input[type="checkbox"] { padding: 0; }
-  iframe { width: 100%; height: calc(100vh - 130px); border: 0; }
+
+  #results { padding: 1.5rem; transition: opacity 0.15s ease; }
+  #results.loading { opacity: 0.5; }
+  .hint { color: var(--ink-muted); }
+  .results-header { margin: 0 0 1rem; font-size: 1.1rem; }
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; background: var(--surface); }
+  .card h3 { margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--ink-secondary); }
+  .card .plot { width: 100%; height: 260px; }
+  .stat-tile { display: flex; align-items: center; justify-content: center; height: 260px; }
+  .stat-value { font-size: 2rem; font-weight: 700; }
+  .no-data { display: flex; align-items: center; justify-content: center; height: 260px; color: var(--ink-muted); }
+  .limits { margin-top: 1.5rem; color: var(--error); }
+  .error-banner { color: var(--error); font-size: 1rem; padding: 0.75rem 0; }
 </style>
 </head>
 <body>
 <header>
   <h1>Financial Charts</h1>
-  <form action="/render" method="get" target="result">
+  <form id="dashboard-form">
     <label class="field">Ticker
       <input name="ticker" placeholder="AAPL or TEVA.TA" required autofocus>
     </label>
@@ -56,6 +88,171 @@
     <button type="submit">Render</button>
   </form>
 </header>
-<iframe name="result" title="dashboard"></iframe>
+<div id="results"><p class="hint">Enter a ticker to render its dashboard.</p></div>
+
+<script src="https://cdn.plot.ly/plotly-basic-3.7.0.min.js" charset="utf-8"></script>
+<script>
+(function () {
+  var PALETTE = [
+    '#2a78d6', '#eb6834', '#1baf7a', '#eda100',
+    '#e87ba4', '#008300', '#4a3aa7', '#e34948'
+  ];
+  var THEME = {
+    light: { surface: '#fcfcfb', ink: '#0b0b0b', grid: '#e1e0d9', axis: '#c3c2b7' },
+    dark: { surface: '#1a1a19', ink: '#ffffff', grid: '#2c2c2a', axis: '#383835' }
+  };
+
+  var form = document.getElementById('dashboard-form');
+  var results = document.getElementById('results');
+  var lastResponse = null;
+
+  function isDark() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function currentTheme() {
+    return isDark() ? THEME.dark : THEME.light;
+  }
+
+  function plotlyLayout(spec) {
+    var theme = currentTheme();
+    return {
+      margin: { l: 50, r: 16, t: 8, b: 36 },
+      showlegend: spec.series.length > 1,
+      legend: { orientation: 'h', font: { size: 11, color: theme.ink } },
+      paper_bgcolor: theme.surface,
+      plot_bgcolor: theme.surface,
+      font: { color: theme.ink, family: 'system-ui, sans-serif', size: 11 },
+      xaxis: { gridcolor: theme.grid, linecolor: theme.axis, tickfont: { size: 10 } },
+      yaxis: { title: spec.y_label, gridcolor: theme.grid, linecolor: theme.axis, tickfont: { size: 10 } },
+      hovermode: spec.kind === 'line' ? 'x unified' : 'closest'
+    };
+  }
+
+  function plotlyTraces(spec) {
+    return spec.series.map(function (s, i) {
+      var color = PALETTE[i % PALETTE.length];
+      if (spec.kind === 'bar') {
+        return { type: 'bar', name: s.label, x: s.dates, y: s.values, marker: { color: color } };
+      }
+      return {
+        type: 'scatter', mode: 'lines+markers', name: s.label,
+        x: s.dates, y: s.values, line: { color: color, width: 2 }, marker: { size: 6 }
+      };
+    });
+  }
+
+  function buildCardSkeleton(container, spec) {
+    var card = document.createElement('div');
+    card.className = 'card';
+    var h3 = document.createElement('h3');
+    h3.textContent = spec.title;
+    card.appendChild(h3);
+    container.appendChild(card);
+    return card;
+  }
+
+  function fillCard(card, spec) {
+    if (spec.kind === 'kpi') {
+      var tile = document.createElement('div');
+      tile.className = 'stat-tile';
+      var value = document.createElement('div');
+      value.className = 'stat-value';
+      value.textContent = spec.value_text;
+      tile.appendChild(value);
+      card.appendChild(tile);
+    } else if (spec.kind === 'no_data') {
+      var empty = document.createElement('div');
+      empty.className = 'no-data';
+      empty.textContent = 'No data';
+      card.appendChild(empty);
+    } else {
+      var plotDiv = document.createElement('div');
+      plotDiv.className = 'plot';
+      card.appendChild(plotDiv);
+      Plotly.newPlot(plotDiv, plotlyTraces(spec), plotlyLayout(spec), { responsive: true, displaylogo: false });
+    }
+  }
+
+  function renderDashboard(data) {
+    lastResponse = data;
+    results.innerHTML = '';
+
+    var header = document.createElement('h2');
+    header.className = 'results-header';
+    header.textContent = data.ticker + ' (' + data.market + ') — ' + data.currency;
+    results.appendChild(header);
+
+    var grid = document.createElement('div');
+    grid.className = 'results-grid';
+    results.appendChild(grid);
+
+    // Two passes: first attach every card skeleton so the grid reaches its
+    // final column count, THEN call Plotly.newPlot on each. Plotly measures
+    // its container synchronously at call time, and its `responsive: true`
+    // only reacts to window resizes — not to the grid narrowing because a
+    // later sibling card was appended — so a chart plotted before its
+    // siblings exist gets stuck rendered at the wrong (too-wide) size.
+    var cards = data.charts.map(function (spec) { return buildCardSkeleton(grid, spec); });
+    data.charts.forEach(function (spec, i) { fillCard(cards[i], spec); });
+
+    if (data.source_limits && data.source_limits.length) {
+      var limits = document.createElement('div');
+      limits.className = 'limits';
+      var limitsHeader = document.createElement('h3');
+      limitsHeader.textContent = 'Source limits';
+      limits.appendChild(limitsHeader);
+      var ul = document.createElement('ul');
+      data.source_limits.forEach(function (limit) {
+        var li = document.createElement('li');
+        li.textContent = limit;
+        ul.appendChild(li);
+      });
+      limits.appendChild(ul);
+      results.appendChild(limits);
+    }
+  }
+
+  function showError(message) {
+    results.innerHTML = '';
+    var banner = document.createElement('div');
+    banner.className = 'error-banner';
+    banner.textContent = message;
+    results.appendChild(banner);
+  }
+
+  var requestId = 0;
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var thisRequest = ++requestId;
+    var params = new URLSearchParams(new FormData(form));
+    results.classList.add('loading');
+    fetch('/chart-data?' + params.toString())
+      .then(function (response) {
+        return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+      })
+      .then(function (result) {
+        if (thisRequest !== requestId) return; // superseded by a later submit
+        if (!result.ok) {
+          showError(result.data.error || 'Something went wrong.');
+          return;
+        }
+        renderDashboard(result.data);
+      })
+      .catch(function (err) {
+        if (thisRequest !== requestId) return;
+        showError('Network error: ' + err.message);
+      })
+      .finally(function () {
+        if (thisRequest === requestId) results.classList.remove('loading');
+      });
+  });
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+    if (lastResponse) renderDashboard(lastResponse);
+  });
+})();
+</script>
 </body>
 </html>

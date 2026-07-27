@@ -222,3 +222,85 @@ def test_render_rejects_ttm_period_before_fetching(client):
     assert response.status_code == 400
     assert "does not support period ttm" in response.get_data(as_text=True)
     mock_load.assert_not_called()
+
+
+def test_render_rejects_unknown_chart_set(client):
+    response = client.get("/render?ticker=AAPL&chart_set=not-a-real-set")
+
+    assert response.status_code == 400
+    assert "unknown chart set" in response.get_data(as_text=True).lower()
+
+
+def test_chart_data_returns_dashboard_json(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()
+    ):
+        response = client.get("/chart-data?ticker=AAPL&source=yfinance&charts=price")
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["ticker"] == "AAPL"
+    assert body["market"] == "US"
+    assert body["currency"] == "USD"
+    assert [c["name"] for c in body["charts"]] == ["price"]
+    assert body["charts"][0]["kind"] == "line"
+
+
+def test_chart_data_without_ticker_is_a_400(client):
+    response = client.get("/chart-data")
+
+    assert response.status_code == 400
+    assert "Enter a ticker" in response.get_json()["error"]
+
+
+def test_chart_data_unknown_ticker_shows_not_found(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals",
+        side_effect=TickerNotFound("ZZZ"),
+    ):
+        response = client.get("/chart-data?ticker=ZZZ")
+
+    assert response.status_code == 404
+    assert "not found" in response.get_json()["error"].lower()
+
+
+def test_chart_data_missing_credentials_names_env_var(client):
+    with patch(
+        "financial_charts.web.app.get_source",
+        side_effect=MissingCredentials("TWELVEDATA_API_KEY is not set"),
+    ):
+        response = client.get("/chart-data?ticker=AAPL&source=twelvedata")
+
+    assert response.status_code == 400
+    assert "TWELVEDATA_API_KEY" in response.get_json()["error"]
+
+
+def test_chart_data_rejects_unknown_chart_set(client):
+    response = client.get("/chart-data?ticker=AAPL&chart_set=not-a-real-set")
+
+    assert response.status_code == 400
+    assert "unknown chart set" in response.get_json()["error"].lower()
+
+
+def test_chart_data_with_unknown_chart_param_shows_error(client):
+    response = client.get("/chart-data?ticker=AAPL&charts=not-a-real-chart")
+
+    assert response.status_code == 400
+    assert "unknown chart" in response.get_json()["error"]
+
+
+def test_chart_data_rejects_unsupported_period(client):
+    response = client.get("/chart-data?ticker=AAPL&period=notaperiod")
+
+    assert response.status_code == 400
+    assert "Unsupported period" in response.get_json()["error"]
+
+
+def test_chart_data_normalizes_lowercase_ticker(client):
+    with patch(
+        "financial_charts.web.app.load_fundamentals", return_value=_fundamentals()
+    ) as mock_load:
+        response = client.get("/chart-data?ticker=aapl&charts=price")
+
+    assert response.status_code == 200
+    mock_load.assert_called_once_with("AAPL", "yfinance", Period.ANNUAL, "5y")

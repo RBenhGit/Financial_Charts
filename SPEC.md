@@ -38,7 +38,10 @@ native currency, and degrade gracefully to "No Data" where a source lacks a metr
   declared gap, rather than silently mismapped.
 
 **Out of scope (v1):**
-- Interactive UI (hover, live toggles, expand-to-detail, in-page downloads) — static only.
+- Interactive UI for the CLI's static PNG/HTML/PDF export — that output stays static
+  matplotlib. **Status:** the browser dashboard (`web/`) is exempt from this — its charts are
+  interactive (hover, zoom, legend toggle) via a client-side JS chart library reading the
+  template's existing JSON serialization; see PROGRESS.md.
 - FX / cross-currency comparison.
 - Multi-company comparison, watchlists, news/"brief" panels, alerts.
 - Sources other than yfinance and Twelve Data.

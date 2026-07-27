@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request
+from dataclasses import dataclass
+
+from flask import Flask, Response, jsonify, render_template, request
 
 from financial_charts import chart_support, config
 from financial_charts.charts.catalog import available_charts, get_chart
@@ -19,7 +21,8 @@ from financial_charts.sources.market import is_valid_ticker, normalize_ticker
 from financial_charts.sources.ranges import RANGES
 from financial_charts.sources.registry import get_source, registered_sources
 from financial_charts.sources.validation import require_supported_period
-from financial_charts.template.models import Period
+from financial_charts.template.models import CompanyFundamentals, Period
+from financial_charts.web.chart_data import ChartDataResponse, build_chart_specs
 from financial_charts.web.service import load_fundamentals
 
 # Submitted values are still validated by the real get_source/get_chart_set inside the
@@ -45,6 +48,89 @@ def _dedup_chart_ids(raw_ids: list[str]) -> list[str]:
             seen.add(chart_id)
             ids.append(chart_id)
     return ids
+
+
+@dataclass
+class _RenderError(Exception):
+    status: int
+    message: str
+
+
+def _resolve_request() -> tuple[CompanyFundamentals, str]:
+    """Validate the request query params, fetch fundamentals, and merge capability limits.
+
+    Shared by `/render` and `/chart-data` so the two response formats can't drift
+    in what they accept or reject. Raises `_RenderError` on any invalid input or
+    fetch failure; the caller decides how to render that into its own response shape.
+    """
+    ticker = (request.args.get("ticker") or "").strip()
+    if not ticker:
+        raise _RenderError(400, "Enter a ticker to render.")
+    if not is_valid_ticker(ticker):
+        raise _RenderError(400, f"Invalid ticker: {ticker}")
+    ticker = normalize_ticker(ticker)
+
+    source_name = request.args.get("source") or config.data_source_name()
+    period_value = request.args.get("period") or config.DEFAULT_PERIOD
+    if period_value not in PERIODS:
+        raise _RenderError(400, f"Unsupported period: {period_value}")
+    range_ = (request.args.get("range") or config.DEFAULT_RANGE).lower()
+    if range_ not in RANGES:
+        raise _RenderError(400, f"Unsupported range: {range_}")
+
+    chart_ids = _dedup_chart_ids(request.args.getlist("charts"))
+    if chart_ids:
+        try:
+            charts = [get_chart(chart_id) for chart_id in chart_ids]
+        except KeyError as exc:
+            raise _RenderError(400, str(exc).strip('"')) from exc
+        # Registering here depends on the dev server's threaded=False
+        # (web/__main__.py) so no two requests interleave a register and
+        # a read of a different selection — see the memory note on this
+        # pattern if that assumption ever changes (e.g. threaded=True or
+        # a multi-worker WSGI deployment).
+        chart_set = CUSTOM_CHART_SET_PREFIX + ",".join(sorted(chart_ids))
+        register_chart_set(chart_set, charts)
+    else:
+        chart_set = request.args.get("chart_set") or config.DEFAULT_CHART_SET
+        try:
+            get_chart_set(chart_set)
+        except KeyError as exc:
+            raise _RenderError(400, str(exc).strip('"')) from exc
+
+    # Resolved here (not inside load_fundamentals) so an unsupported period
+    # is rejected before any fetch is attempted — same pre-flight gate the
+    # CLI uses, kept independent rather than threaded through service.py.
+    try:
+        adapter = get_source(source_name)
+    except KeyError as exc:
+        raise _RenderError(400, str(exc).strip('"')) from exc
+    except MissingCredentials as exc:
+        raise _RenderError(400, str(exc)) from exc
+
+    period = Period(period_value)
+    try:
+        require_supported_period(adapter.capability(), period)
+    except UnsupportedPeriod as exc:
+        raise _RenderError(400, str(exc)) from exc
+
+    try:
+        fundamentals = load_fundamentals(ticker, source_name, period, range_)
+    except TickerNotFound as exc:
+        raise _RenderError(404, f"Ticker not found: {ticker}") from exc
+    except SourceUnavailable as exc:
+        raise _RenderError(
+            502, f"Source unavailable and no cache to fall back to: {exc}"
+        ) from exc
+
+    fundamentals.source_limits.extend(
+        limit
+        for limit in chart_support.capability_limits(
+            get_chart_set(chart_set), adapter.capability()
+        )
+        if limit not in fundamentals.source_limits
+    )
+    return fundamentals, chart_set
 
 
 def create_app() -> Flask:
@@ -76,79 +162,28 @@ def create_app() -> Flask:
 
     @app.get("/render")
     def render():
-        ticker = (request.args.get("ticker") or "").strip()
-        if not ticker:
-            return render_template(
-                "error.html", message="Enter a ticker to render."
-            ), 400
-        if not is_valid_ticker(ticker):
-            return render_template(
-                "error.html", message=f"Invalid ticker: {ticker}"
-            ), 400
-        ticker = normalize_ticker(ticker)
-
-        source_name = request.args.get("source") or config.data_source_name()
-        period_value = request.args.get("period") or config.DEFAULT_PERIOD
-        if period_value not in PERIODS:
-            return render_template(
-                "error.html", message=f"Unsupported period: {period_value}"
-            ), 400
-        range_ = (request.args.get("range") or config.DEFAULT_RANGE).lower()
-        if range_ not in RANGES:
-            return render_template(
-                "error.html", message=f"Unsupported range: {range_}"
-            ), 400
-
-        chart_ids = _dedup_chart_ids(request.args.getlist("charts"))
-        if chart_ids:
-            try:
-                charts = [get_chart(chart_id) for chart_id in chart_ids]
-            except KeyError as exc:
-                return render_template("error.html", message=str(exc).strip('"')), 400
-            # Registering here depends on the dev server's threaded=False
-            # (web/__main__.py) so no two requests interleave a register and
-            # a read of a different selection — see the memory note on this
-            # pattern if that assumption ever changes (e.g. threaded=True or
-            # a multi-worker WSGI deployment).
-            chart_set = CUSTOM_CHART_SET_PREFIX + ",".join(sorted(chart_ids))
-            register_chart_set(chart_set, charts)
-        else:
-            chart_set = request.args.get("chart_set") or config.DEFAULT_CHART_SET
-
-        # Resolved here (not inside load_fundamentals) so an unsupported period
-        # is rejected before any fetch is attempted — same pre-flight gate the
-        # CLI uses, kept independent rather than threaded through service.py.
         try:
-            adapter = get_source(source_name)
-        except KeyError as exc:
-            return render_template("error.html", message=str(exc).strip('"')), 400
-        except MissingCredentials as exc:
-            return render_template("error.html", message=str(exc)), 400
+            fundamentals, chart_set = _resolve_request()
+        except _RenderError as exc:
+            return render_template("error.html", message=exc.message), exc.status
+        return render_html(fundamentals, chart_set)
 
-        period = Period(period_value)
+    @app.get("/chart-data")
+    def chart_data_route():
         try:
-            require_supported_period(adapter.capability(), period)
-        except UnsupportedPeriod as exc:
-            return render_template("error.html", message=str(exc)), 400
-
-        try:
-            fundamentals = load_fundamentals(ticker, source_name, period, range_)
-            fundamentals.source_limits.extend(
-                limit
-                for limit in chart_support.capability_limits(
-                    get_chart_set(chart_set), adapter.capability()
-                )
-                if limit not in fundamentals.source_limits
-            )
-            return render_html(fundamentals, chart_set)
-        except TickerNotFound:
-            return render_template(
-                "error.html", message=f"Ticker not found: {ticker}"
-            ), 404
-        except SourceUnavailable as exc:
-            return render_template(
-                "error.html",
-                message=f"Source unavailable and no cache to fall back to: {exc}",
-            ), 502
+            fundamentals, chart_set = _resolve_request()
+        except _RenderError as exc:
+            return jsonify(error=exc.message), exc.status
+        response = ChartDataResponse(
+            ticker=fundamentals.ticker,
+            market=fundamentals.market.value,
+            currency=fundamentals.currency.value,
+            source_limits=fundamentals.source_limits,
+            charts=build_chart_specs(fundamentals, chart_set),
+        )
+        # Never flask.jsonify() a model with computed floats — it reproduces raw
+        # NaN tokens (invalid JSON); Pydantic's model_dump_json() launders NaN to
+        # null, which SMA warm-up periods and other computed ratios can produce.
+        return Response(response.model_dump_json(), mimetype="application/json")
 
     return app

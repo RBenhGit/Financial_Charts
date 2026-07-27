@@ -27,6 +27,47 @@ changes to sources/cache/template are needed.
 
 240 tests passing, `ruff check` clean, `.claude` hooks wired to the uv toolchain.
 
+## Web UI (step 2 — interactive)
+
+Done. The iframe/static-PNG dashboard is replaced with client-side Plotly.js
+charts, exactly as step 1 anticipated — no changes to sources/cache/template/
+charts/dashboard, all new code lives in `web/`. The CLI (`--out *.png/*.pdf/*.html`)
+is untouched and stays static matplotlib.
+
+- `web/chart_data.py` (new) shapes a `CompanyFundamentals` chart set into JSON,
+  independent of every `charts/builtins/*.py` file — re-derived from the template
+  (reusing `charts.base`'s published `currency_symbol`/`format_compact_number` and
+  `template.derived`'s published `resolve`/`ratio`/`DerivedMetric` constants) rather
+  than introspecting matplotlib `Axes` output, which would depend on an unpublished
+  surface. A handful of charts (market cap, P/E, dividend yield, ROE, valuation's
+  nearest-price join, price's SMA overlay) have their small inline math
+  re-implemented here since it isn't externalized from their chart file today —
+  an accepted, not eliminated, duplication/drift risk against those originals.
+- **NaN → invalid JSON**: `flask.jsonify()` reproduces a raw `NaN` token for values
+  like the SMA warm-up period (invalid per the JSON spec, breaks `JSON.parse`).
+  Fixed by returning `ChartDataResponse.model_dump_json()` (Pydantic launders NaN
+  to `null`) via a raw `Response`, never through `jsonify()`.
+- New `GET /chart-data` route in `web/app.py`, alongside the unchanged `/render`
+  (kept as a plain-HTML fallback). Both share a new `_resolve_request()` extracted
+  from `/render`'s old body. While extracting it: `chart_set` was previously
+  unvalidated (`?chart_set=bogus` → unhandled 500) — fixed as a small in-scope gap
+  while already touching this validation code.
+- `index.html`'s iframe is gone; the form fetches `/chart-data` and renders cards
+  client-side. KPI charts render as plain HTML stat tiles (not Plotly traces) per
+  the dataviz skill's guidance that a single current value is a stat tile, not a
+  one-bar chart. Colors use the dataviz skill's validated categorical palette,
+  deliberately dropping the matplotlib named colors (`"darkorange"` etc.) used
+  today as per-card decoration. Dark mode re-themes via `prefers-color-scheme`
+  (Plotly doesn't auto-theme) and re-renders the last response on an OS theme
+  change. Plotly.js loads from its CDN pinned to an exact version (`plotly-basic-
+  3.7.0.min.js`), not `plotly-latest`.
+- **Deferred, not dropped**: no table-view accessibility fallback for the
+  interactive charts (the dataviz skill's twin of every chart); no delta/sparkline
+  on KPI stat tiles even though the underlying series exists.
+- No JS test runner exists in this toolchain (plain Flask+Jinja2, no bundler) —
+  the fetch+Plotly wiring is verified manually (`python -m financial_charts.web`),
+  not by `pytest`.
+
 ## Task 16 — chart inventory (SPEC.md)
 
 Done. The full inventory beyond the original six (Price, Revenue, Net Income,
