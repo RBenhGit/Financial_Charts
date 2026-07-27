@@ -23,6 +23,7 @@ from financial_charts.sources.registry import get_source, registered_sources
 from financial_charts.sources.validation import require_supported_period
 from financial_charts.template.models import CompanyFundamentals, Period
 from financial_charts.web.chart_data import ChartDataResponse, build_chart_specs
+from financial_charts.web.chart_set_store import ChartSetStore
 from financial_charts.web.service import load_fundamentals
 
 # Submitted values are still validated by the real get_source/get_chart_set inside the
@@ -133,8 +134,21 @@ def _resolve_request() -> tuple[CompanyFundamentals, str]:
     return fundamentals, chart_set
 
 
-def create_app() -> Flask:
+def create_app(chart_set_store: ChartSetStore | None = None) -> Flask:
     app = Flask(__name__)
+    store = chart_set_store or ChartSetStore()
+
+    # Re-register any user-created chart sets saved in a previous run, so
+    # restarting the server doesn't lose them. A chart id that no longer
+    # resolves (e.g. removed from the catalog since it was saved) is skipped,
+    # not a crash — same "declared gap, not a runtime surprise" posture as a
+    # source's missing metric.
+    for name, chart_ids in store.load().items():
+        try:
+            charts = [get_chart(chart_id) for chart_id in chart_ids]
+        except KeyError:
+            continue
+        register_chart_set(name, charts)
 
     @app.get("/")
     def index() -> str:
@@ -158,6 +172,13 @@ def create_app() -> Flask:
             # Chart set dropdown, unaffected by this).
             default_chart_names={
                 c.name for c in get_chart_set(config.DEFAULT_CHART_SET)
+            },
+            # Every registered set's own members, so the front end can re-sync
+            # the checkbox picker whenever the Chart set dropdown changes,
+            # not just at initial page load.
+            chart_set_members={
+                name: [c.name for c in get_chart_set(name)]
+                for name in registered_chart_sets()
             },
             defaults={
                 "source": config.data_source_name(),
@@ -192,5 +213,37 @@ def create_app() -> Flask:
         # NaN tokens (invalid JSON); Pydantic's model_dump_json() launders NaN to
         # null, which SMA warm-up periods and other computed ratios can produce.
         return Response(response.model_dump_json(), mimetype="application/json")
+
+    @app.post("/chart-sets")
+    def create_chart_set():
+        # jsonify() is safe here (unlike /chart-data) — every field below is a
+        # plain string/list of strings, never a computed float that could be NaN.
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            return jsonify(error="Enter a name for the chart set."), 400
+        if name.startswith(CUSTOM_CHART_SET_PREFIX):
+            return jsonify(
+                error=f"Name can't start with {CUSTOM_CHART_SET_PREFIX!r}."
+            ), 400
+        if name in registered_chart_sets():
+            return jsonify(error=f"A chart set named {name!r} already exists."), 400
+
+        chart_ids = _dedup_chart_ids(request.form.getlist("charts"))
+        if not chart_ids:
+            return jsonify(error="Select at least one chart to save."), 400
+        try:
+            charts = [get_chart(chart_id) for chart_id in chart_ids]
+        except KeyError as exc:
+            return jsonify(error=str(exc).strip('"')), 400
+
+        # Persist before registering: if the disk write fails, `name` never
+        # goes live, so it isn't stuck "already exists" (blocking a retry)
+        # while also not actually being saved anywhere.
+        try:
+            store.save(name, chart_ids)
+        except OSError as exc:
+            return jsonify(error=f"Could not save chart set: {exc}"), 500
+        register_chart_set(name, charts)
+        return jsonify(ok=True, name=name, charts=chart_ids)
 
     return app

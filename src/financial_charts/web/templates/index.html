@@ -48,19 +48,30 @@
     top: calc(100% + 0.3rem);
     left: 0;
     z-index: 10;
-    display: grid;
-    grid-template-columns: repeat(3, 11rem);
-    gap: 0.15rem 1rem;
-    max-height: 12rem;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 0.5rem 0.75rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
-  .chart-picker-panel label { display: flex; align-items: center; gap: 0.3rem; padding: 0; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .chart-picker-panel input[type="checkbox"] { padding: 0; flex-shrink: 0; }
+  .chart-picker-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(3, 11rem);
+    gap: 0.15rem 1rem;
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+  .chart-picker-checkboxes label { display: flex; align-items: center; gap: 0.3rem; padding: 0; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chart-picker-checkboxes input[type="checkbox"] { padding: 0; flex-shrink: 0; }
+  .chart-picker-save { display: flex; align-items: center; gap: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--border); }
+  .chart-picker-save input[type="text"] { flex: 1; min-width: 0; }
+  .chart-picker-save button { white-space: nowrap; }
+  .chart-picker-save-message { font-size: 0.8rem; min-height: 1em; }
+  .chart-picker-save-message.error { color: var(--error); }
+  .chart-picker-save-message.success { color: var(--ink-secondary); }
 
   #results { padding: 1.5rem; transition: opacity 0.15s ease; }
   #results.loading { opacity: 0.5; }
@@ -107,14 +118,22 @@
     <details class="chart-picker">
       <summary>Charts (optional — overrides Chart set)</summary>
       <div class="chart-picker-panel">
-        {% for c in charts %}
-        <label title="Supported by: {{ chart_support[c.name] | join(', ') }}"><input type="checkbox" name="charts" value="{{ c.name }}" {{ 'checked' if c.name in default_chart_names }}> {{ c.title }}</label>
-        {% endfor %}
+        <div class="chart-picker-checkboxes">
+          {% for c in charts %}
+          <label title="Supported by: {{ chart_support[c.name] | join(', ') }}"><input type="checkbox" name="charts" value="{{ c.name }}" {{ 'checked' if c.name in default_chart_names }}> {{ c.title }}</label>
+          {% endfor %}
+        </div>
+        <div class="chart-picker-save">
+          <input type="text" id="new-set-name" placeholder="New set name">
+          <button type="button" id="save-set-button">Save as new set</button>
+        </div>
+        <div id="save-set-message" class="chart-picker-save-message"></div>
       </div>
     </details>
     <button type="submit">Render</button>
   </form>
 </header>
+<script type="application/json" id="chart-set-members">{{ chart_set_members | tojson }}</script>
 <div id="results"><p class="hint">Enter a ticker to render its dashboard.</p></div>
 
 <script src="https://cdn.plot.ly/plotly-basic-3.7.0.min.js" charset="utf-8"></script>
@@ -132,6 +151,72 @@
   var form = document.getElementById('dashboard-form');
   var results = document.getElementById('results');
   var lastResponse = null;
+  var chartSetMembers = JSON.parse(document.getElementById('chart-set-members').textContent);
+
+  var chartSetSelect = form.querySelector('select[name="chart_set"]');
+  var newSetNameInput = document.getElementById('new-set-name');
+  var saveSetButton = document.getElementById('save-set-button');
+  var saveSetMessage = document.getElementById('save-set-message');
+
+  // Keeps the checkbox picker showing whatever the selected Chart set
+  // actually contains, instead of a fixed snapshot taken at page load.
+  function syncCheckboxesToChartSet(setName) {
+    var members = {};
+    (chartSetMembers[setName] || []).forEach(function (name) { members[name] = true; });
+    form.querySelectorAll('input[name="charts"]').forEach(function (checkbox) {
+      checkbox.checked = !!members[checkbox.value];
+    });
+  }
+
+  chartSetSelect.addEventListener('change', function () {
+    syncCheckboxesToChartSet(chartSetSelect.value);
+  });
+
+  function setSaveMessage(text, kind) {
+    saveSetMessage.textContent = text;
+    saveSetMessage.className = 'chart-picker-save-message' + (kind ? ' ' + kind : '');
+  }
+
+  function saveCurrentSelectionAsNewSet() {
+    var name = newSetNameInput.value.trim();
+    var checkedNames = Array.from(form.querySelectorAll('input[name="charts"]:checked'))
+      .map(function (checkbox) { return checkbox.value; });
+
+    var body = new URLSearchParams();
+    body.set('name', name);
+    checkedNames.forEach(function (chartName) { body.append('charts', chartName); });
+    setSaveMessage('');
+
+    fetch('/chart-sets', { method: 'POST', body: body })
+      .then(function (response) {
+        return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          setSaveMessage(result.data.error || 'Could not save.', 'error');
+          return;
+        }
+        var option = document.createElement('option');
+        option.value = result.data.name;
+        option.textContent = result.data.name;
+        option.selected = true;
+        chartSetSelect.appendChild(option);
+        chartSetMembers[result.data.name] = result.data.charts;
+        newSetNameInput.value = '';
+        setSaveMessage('Saved "' + result.data.name + '".', 'success');
+      })
+      .catch(function (err) {
+        setSaveMessage('Network error: ' + err.message, 'error');
+      });
+  }
+
+  saveSetButton.addEventListener('click', saveCurrentSelectionAsNewSet);
+  newSetNameInput.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      event.preventDefault(); // this input lives inside the main form — don't submit it
+      saveCurrentSelectionAsNewSet();
+    }
+  });
 
   function isDark() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;

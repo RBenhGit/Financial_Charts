@@ -68,6 +68,44 @@ is untouched and stays static matplotlib.
   the fetch+Plotly wiring is verified manually (`python -m financial_charts.web`),
   not by `pytest`.
 
+## Web UI — chart picker layout + user-creatable chart sets
+
+Done, two follow-ups from using the interactive dashboard:
+
+- The checkbox picker was a single-column list of all 21 charts (~500px
+  tall), pushing the rest of the form down. Now a `<details>`/`<summary>`
+  popover (no JS needed to open/close) — collapsed by default to one line,
+  opens as a `position: absolute` floating panel (a compact 3-column
+  checkbox grid) so it overlays instead of displacing sibling fields.
+  Pre-checked with `config.DEFAULT_CHART_SET`'s own members at page load.
+- **The picker and the "Chart set" dropdown weren't actually connected** —
+  the picker's checked state was a fixed snapshot taken once at page load,
+  not reactive to the dropdown. Fixed: `index()` now passes a
+  `chart_set_members` map (every registered set's own chart ids) as a JSON
+  island; a `change` listener on the dropdown re-syncs the checkboxes to
+  match. This also exposed that there was no way to *create* a new chart
+  set — only `charts/registry.py`'s `register_chart_set()`, a Python-only
+  function.
+- New `web/chart_set_store.py` (`ChartSetStore`) — disk persistence for
+  user-created chart sets, deliberately mirroring `cache/store.py`'s
+  `TemplateCache` pattern (atomic temp-file-then-`os.replace` write,
+  injectable directory, corrupt/missing file treated as empty rather than a
+  crash), one JSON file in the same already-gitignored `.cache/financial_charts/`
+  directory. `create_app()` takes an optional `chart_set_store` param
+  (defaults to the real store) and re-registers every persisted set on
+  startup via the existing published `register_chart_set()` — `charts/registry.py`
+  itself is untouched. A chart id that no longer resolves (catalog changed
+  since it was saved) is skipped, not a startup crash.
+- New `POST /chart-sets` route + a small "Save as new set" row inside the
+  picker popover: names the current checkbox selection, registers it live
+  and persists it, and the front end inserts+selects the new `<option>`
+  without a page reload.
+- `web/app_test.py`'s `client` fixture now injects a `tmp_path`-backed
+  `ChartSetStore` for every test in the file (not just the new ones) — the
+  bootstrap-on-`create_app()` load means every test now indirectly touches
+  chart-set persistence, and none of them should read or write the real
+  local `.cache/financial_charts/chart_sets.json`.
+
 ## Task 16 — chart inventory (SPEC.md)
 
 Done. The full inventory beyond the original six (Price, Revenue, Net Income,

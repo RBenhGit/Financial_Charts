@@ -7,7 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
+from financial_charts.charts.catalog import get_chart
+from financial_charts.charts.registry import register_chart_set
 from financial_charts.sources.base import MissingCredentials, TickerNotFound
+from financial_charts.web.chart_set_store import ChartSetStore
 from financial_charts.template.models import (
     CompanyFundamentals,
     Currency,
@@ -44,8 +47,11 @@ def _fundamentals() -> CompanyFundamentals:
 
 
 @pytest.fixture
-def client():
-    return create_app().test_client()
+def client(tmp_path):
+    # tmp_path-backed store: create_app() now bootstrap-loads persisted chart
+    # sets on startup, and this suite must not read or write the real
+    # .cache/financial_charts/chart_sets.json on whatever machine runs it.
+    return create_app(chart_set_store=ChartSetStore(tmp_path)).test_client()
 
 
 def test_index_shows_the_form(client):
@@ -136,11 +142,13 @@ def test_index_source_dropdown_reflects_the_live_registry(client):
 
 
 def test_index_chart_set_dropdown_reflects_the_live_registry(client):
-    with patch(
-        "financial_charts.web.app.registered_chart_sets",
-        return_value=["fundamentals", "growth"],
-    ):
-        response = client.get("/")
+    # Registered for real (not just a mocked registered_chart_sets return)
+    # since index() now also resolves each name's own members via
+    # get_chart_set() for the chart_set_members map — a name that only
+    # exists in a mock would KeyError there.
+    register_chart_set("growth", [get_chart("revenue")])
+
+    response = client.get("/")
 
     body = response.get_data(as_text=True)
     assert 'value="growth"' in body
@@ -304,3 +312,91 @@ def test_chart_data_normalizes_lowercase_ticker(client):
 
     assert response.status_code == 200
     mock_load.assert_called_once_with("AAPL", "yfinance", Period.ANNUAL, "5y")
+
+
+def test_create_chart_set_succeeds_and_shows_up_in_the_dropdown(client):
+    # Names prefixed "picker_" throughout this file are unique to these tests —
+    # _CHART_SETS is process-global and never evicted, so a name shared with
+    # another test (e.g. "growth", used by
+    # test_index_chart_set_dropdown_reflects_the_live_registry) would collide.
+    response = client.post(
+        "/chart-sets", data={"name": "picker_alpha", "charts": ["revenue", "eps"]}
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body == {"ok": True, "name": "picker_alpha", "charts": ["revenue", "eps"]}
+
+    index_body = client.get("/").get_data(as_text=True)
+    assert 'value="picker_alpha"' in index_body
+
+
+def test_create_chart_set_requires_a_name(client):
+    response = client.post("/chart-sets", data={"charts": ["revenue"]})
+
+    assert response.status_code == 400
+    assert "name" in response.get_json()["error"].lower()
+
+
+def test_create_chart_set_rejects_a_duplicate_name(client):
+    response = client.post(
+        "/chart-sets", data={"name": "fundamentals", "charts": ["revenue"]}
+    )
+
+    assert response.status_code == 400
+    assert "already exists" in response.get_json()["error"]
+
+
+def test_create_chart_set_requires_at_least_one_chart(client):
+    response = client.post("/chart-sets", data={"name": "picker_beta"})
+
+    assert response.status_code == 400
+    assert "select at least one" in response.get_json()["error"].lower()
+
+
+def test_create_chart_set_rejects_an_unknown_chart(client):
+    response = client.post(
+        "/chart-sets", data={"name": "picker_gamma", "charts": ["not-a-real-chart"]}
+    )
+
+    assert response.status_code == 400
+    assert "unknown chart" in response.get_json()["error"]
+
+
+def test_create_chart_set_rejects_the_reserved_custom_prefix(client):
+    response = client.post(
+        "/chart-sets", data={"name": "custom:picker_delta", "charts": ["revenue"]}
+    )
+
+    assert response.status_code == 400
+    assert "custom:" in response.get_json()["error"]
+
+
+def test_created_chart_set_persists_across_a_server_restart(tmp_path):
+    store = ChartSetStore(tmp_path)
+    first_run = create_app(chart_set_store=store).test_client()
+    first_run.post(
+        "/chart-sets", data={"name": "picker_epsilon", "charts": ["revenue", "eps"]}
+    )
+
+    # A fresh create_app() call against the same on-disk store simulates
+    # restarting `python -m financial_charts.web` — the bootstrap loop in
+    # create_app() should re-register what was saved above.
+    second_run = create_app(chart_set_store=store).test_client()
+    index_body = second_run.get("/").get_data(as_text=True)
+
+    assert 'value="picker_epsilon"' in index_body
+
+
+def test_bootstrap_skips_a_persisted_set_with_a_since_removed_chart_id(tmp_path):
+    store = ChartSetStore(tmp_path)
+    store.save("picker_zeta", ["not-a-real-chart"])
+
+    # Must not crash create_app() — a chart id that no longer resolves (e.g.
+    # removed from the catalog since the set was saved) is a declared gap,
+    # not a startup failure.
+    index_body = (
+        create_app(chart_set_store=store).test_client().get("/").get_data(as_text=True)
+    )
+
+    assert 'value="picker_zeta"' not in index_body
