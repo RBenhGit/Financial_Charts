@@ -248,8 +248,8 @@
         return { type: 'bar', name: s.label, x: s.dates, y: s.values, marker: { color: color } };
       }
       return {
-        type: 'scatter', mode: 'lines+markers', name: s.label,
-        x: s.dates, y: s.values, line: { color: color, width: 2 }, marker: { size: 6 }
+        type: 'scatter', mode: s.markers === false ? 'lines' : 'lines+markers', name: s.label,
+        x: s.dates, y: s.values, line: { color: color, width: s.width || 2 }, marker: { size: 6 }
       };
     });
   }

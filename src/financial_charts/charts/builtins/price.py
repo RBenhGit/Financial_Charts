@@ -21,7 +21,7 @@ class PriceChart:
         for window in _SMA_WINDOWS:
             if len(closes) >= window:
                 sma = closes.rolling(window=window).mean()
-                ax.plot(dates, sma.to_numpy(), label=f"SMA {window}", linewidth=1)
+                ax.plot(dates, sma.to_numpy(), label=f"SMA {window}", linewidth=0.8)
 
         ax.set_ylabel(f"Price ({currency_symbol(fundamentals)})")
         ax.legend(fontsize=7, loc="upper left")

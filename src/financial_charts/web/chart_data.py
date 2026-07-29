@@ -42,6 +42,10 @@ class SeriesSpec(BaseModel):
     label: str
     dates: list[date]
     values: list[float]
+    # Optional drawing hints for the browser: overlay lines (price's SMAs) are
+    # drawn thin and without per-point markers so the primary series stands out.
+    width: float | None = None
+    markers: bool = True
 
 
 class _ChartSpecBase(BaseModel):
@@ -297,7 +301,13 @@ def _price(fundamentals: CompanyFundamentals) -> dict:
         if len(closes) >= window:
             sma = closes.rolling(window=window).mean()
             series.append(
-                {"label": f"SMA {window}", "dates": dates, "values": sma.tolist()}
+                {
+                    "label": f"SMA {window}",
+                    "dates": dates,
+                    "values": sma.tolist(),
+                    "width": 1,
+                    "markers": False,
+                }
             )
 
     return {

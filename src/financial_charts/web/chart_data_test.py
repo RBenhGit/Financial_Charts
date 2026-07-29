@@ -267,6 +267,20 @@ def test_price_sma_only_emitted_once_enough_points_exist():
     assert [s["label"] for s in spec["series"]] == ["Close"]
 
 
+def test_price_sma_drawn_thin_and_markerless_close_left_alone():
+    points = [(_D + timedelta(days=i), 100 + i) for i in range(55)]
+    fundamentals = _fundamentals_with({"price": _money_series("price", points)})
+
+    specs = _specs_for(["price"], fundamentals)
+    response = ChartDataResponse(
+        ticker="TEST", market="US", currency="USD", charts=specs
+    )
+    close, sma_50 = json.loads(response.model_dump_json())["charts"][0]["series"]
+
+    assert (close["label"], close["width"], close["markers"]) == ("Close", None, True)
+    assert (sma_50["label"], sma_50["width"], sma_50["markers"]) == ("SMA 50", 1, False)
+
+
 def test_price_sma_warmup_nan_launders_to_json_null():
     points = [(_D + timedelta(days=i), 100 + i) for i in range(55)]
     fundamentals = _fundamentals_with({"price": _money_series("price", points)})
