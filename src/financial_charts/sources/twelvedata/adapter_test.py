@@ -10,7 +10,8 @@ from financial_charts.sources.base import (
     SourceUnavailable,
     TickerNotFound,
 )
-from financial_charts.sources.twelvedata.adapter import TwelveDataAdapter
+from financial_charts.sources.ranges import RANGES
+from financial_charts.sources.twelvedata.adapter import TwelveDataAdapter, _price_params
 from financial_charts.template.models import Currency, Market, Period
 
 _FIXTURES = Path(__file__).parent / "fixtures"
@@ -190,3 +191,51 @@ def test_income_row_missing_fiscal_date_is_skipped_not_a_crash():
     revenue = fundamentals.series["revenue"]
     assert revenue.available
     assert len(revenue.points) == len(fixture["income"]["income_statement"]) - 1
+
+
+def test_every_range_asks_for_daily_bars():
+    """The price chart's SMA windows count points, not days, so a coarser bar at long
+    ranges would quietly turn "SMA 50" into a 50-week or 50-month average — and put this
+    source at odds with yfinance, which is always daily, on the same chart.
+    """
+    for range_ in RANGES:
+        params = _price_params(range_)
+        assert params["interval"] == "1day", range_
+        # 5000 is Twelve Data's documented (and live-verified) outputsize cap.
+        assert 0 < params["outputsize"] <= 5000, range_
+
+    # Enough bars for the widest SMA window once the range is long enough to want it.
+    assert _price_params("3y")["outputsize"] >= 200
+
+
+def test_unknown_range_still_asks_for_daily_bars():
+    assert _price_params("nonsense") == {"interval": "1day", "outputsize": 5000}
+
+
+def test_price_params_reach_the_time_series_request():
+    fixture = _load("aapl")
+    responses = {
+        "time_series": fixture["price"],
+        "income_statement": fixture["income"],
+        "cash_flow": fixture["cashflow"],
+        "balance_sheet": fixture["balance_sheet"],
+    }
+    seen: dict[str, dict] = {}
+
+    def fake_get(self, endpoint: str, **params) -> dict:
+        seen[endpoint] = params
+        return responses[endpoint]
+
+    with (
+        patch(
+            "financial_charts.sources.twelvedata.adapter.TwelveDataAdapter._get",
+            fake_get,
+        ),
+        patch.dict("os.environ", {"TWELVEDATA_API_KEY": "test-key"}),
+    ):
+        TwelveDataAdapter().fetch("AAPL", Market.US, Period.ANNUAL, "10y")
+
+    assert seen["time_series"]["interval"] == "1day"
+    assert seen["time_series"]["outputsize"] == 2600
+    # The statement endpoints take no range/date param — range bounds prices only.
+    assert "interval" not in seen["income_statement"]

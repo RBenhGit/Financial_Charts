@@ -24,14 +24,24 @@ from financial_charts.template.models import (
 
 _BASE_URL = "https://api.twelvedata.com"
 
-# Coarser intervals for longer ranges keep the point count sane for a static chart.
-_PRICE_INTERVAL_BY_RANGE = {
-    "6m": ("1day", 130),
-    "1y": ("1day", 260),
-    "3y": ("1week", 160),
-    "5y": ("1week", 260),
-    "10y": ("1month", 120),
-    "max": ("1month", 240),
+# Daily bars at every range, roughly 260 per year of the requested window.
+#
+# The price chart's SMA overlays count *points*, not days (see charts/builtins/price.py),
+# so a source that returned weekly or monthly bars for long ranges would silently turn
+# "SMA 50" into a 50-week or 50-month average — and yfinance, which is always daily,
+# would disagree with this source on the same chart. Every range therefore asks for
+# daily bars, matching yfinance's cadence.
+#
+# `outputsize` costs nothing extra: Twelve Data bills `time_series` per request, not per
+# point, and caps the parameter at 5000 (verified against the live API).
+_PRICE_INTERVAL = "1day"
+_PRICE_OUTPUTSIZE_BY_RANGE = {
+    "6m": 130,
+    "1y": 260,
+    "3y": 780,
+    "5y": 1300,
+    "10y": 2600,
+    "max": 5000,
 }
 
 
@@ -213,8 +223,8 @@ class TwelveDataAdapter:
 
 
 def _price_params(range: str) -> dict:
-    interval, outputsize = _PRICE_INTERVAL_BY_RANGE.get(range.lower(), ("1month", 240))
-    return {"interval": interval, "outputsize": outputsize}
+    outputsize = _PRICE_OUTPUTSIZE_BY_RANGE.get(range.lower(), 5000)
+    return {"interval": _PRICE_INTERVAL, "outputsize": outputsize}
 
 
 def _unavailable(metric_id: str, source_limits: list[str]) -> MetricSeries:
